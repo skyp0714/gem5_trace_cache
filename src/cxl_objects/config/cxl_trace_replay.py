@@ -16,6 +16,8 @@ parser.add_argument("--debug-flags", type=str, default="",
                     help="Debug flags to enable (comma separated)")
 parser.add_argument("--enable-cxl-debug", action="store_true",
                     help="Enable CXLCard debug flag")
+parser.add_argument("--enable-decomp-debug", action="store_true",
+                    help="Enable DecompressionEngine debug flag")
 parser.add_argument("--enable-cache-debug", action="store_true",
                     help="Enable Cache debug flags")
 parser.add_argument("--enable-memory-debug", action="store_true",
@@ -36,6 +38,10 @@ if args.debug_flags:
 # Enable CXLCard debug flag if requested
 if args.enable_cxl_debug:
     m5.debug.flags['CXLCard'].enable()
+
+# Enable DecompressionEngine debug flag if requested
+if args.enable_decomp_debug:
+    m5.debug.flags['DecompEngine'].enable()
 
 # Enable Cache debug flags if requested
 if args.enable_cache_debug:
@@ -87,17 +93,20 @@ system.l1cache = Cache(size=args.l1_size,
 system.cxl_controller = CXLController(trace_file=args.trace_file,
                                      cache_line_size=args.cacheline_size)
 
-# Connect the CXL controller to the L1 cache
-system.cxl_controller.mem_side_port = system.l1cache.cpu_side
+# Connect the CXL controller to cache
+system.cxl_controller.cache_port = system.l1cache.cpu_side
 
-# Connect the cache to the memory bus
-system.l1cache.mem_side = system.membus.cpu_side_ports
+# Connect memory according to configuration
 
 # Create a memory controller and connect it to the memory bus
 system.mem_ctrl = MemCtrl()
 system.mem_ctrl.dram = DDR4_2400_8x8()
 system.mem_ctrl.dram.range = system.mem_ranges[0]
 system.mem_ctrl.port = system.membus.mem_side_ports
+
+system.decompression_engine = DecompressionEngine()
+system.cxl_controller.mem_port = system.decompression_engine.cxl_side_port
+system.decompression_engine.mem_side_port = system.membus.cpu_side_ports
 
 # Set up the system port
 system.system_port = system.membus.cpu_side_ports

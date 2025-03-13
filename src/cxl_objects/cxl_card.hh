@@ -31,6 +31,12 @@ struct CXLRequest
     
     // Packet pointer for pending requests
     PacketPtr pkt = nullptr;
+    PacketPtr memPkt = nullptr; // For direct memory access on cache miss
+    
+    // Request tracking
+    Tick sendTick = 0;  // When the request was sent
+    bool sentToCache = false; // Whether this request was sent to cache
+    bool cacheHit = false;    // Whether this was a cache hit
 };
 
 // Event class for CXL requests
@@ -65,24 +71,32 @@ class CXLController : public SimObject
     // Vector of CXL requests
     std::vector<CXLRequest> requests;
     
-    // Request port to the memory system
+    // Request ports to the memory system
     class CXLRequestPort : public RequestPort
     {
       private:
         CXLController *controller;
+        bool isCache; // Whether this is the cache port (vs mem port)
         
       public:
-        CXLRequestPort(const std::string &name, CXLController *ctrl)
-            : RequestPort(name), controller(ctrl) {}
+        CXLRequestPort(const std::string &name, CXLController *ctrl, bool is_cache)
+            : RequestPort(name), controller(ctrl), isCache(is_cache) {}
             
         bool recvTimingResp(PacketPtr pkt) override;
         void recvReqRetry() override;
+        
+        bool isToCache() const { return isCache; }
     };
     
+    // Port to the cache
+    CXLRequestPort cachePort;
+    
+    // Port directly to memory
     CXLRequestPort memPort;
     
-    // Queue for storing packets that need to be retried
-    std::queue<PacketPtr> retryQueue;
+    // Queues for storing packets that need to be retried
+    std::queue<PacketPtr> cacheRetryQueue;
+    std::queue<PacketPtr> memRetryQueue;
     
     // Map to track outstanding requests
     std::unordered_map<Addr, CXLRequest*> outstandingReqs;
@@ -100,6 +114,12 @@ class CXLController : public SimObject
     // Send a memory request
     bool sendRequest(CXLRequest &req);
     
+    // Send a request to the cache
+    bool sendRequestToCache(CXLRequest &req);
+    
+    // Send a request directly to memory (for cache miss)
+    bool sendRequestToMemory(CXLRequest &req);
+    
     // Check if all requests have been completed
     bool allRequestsCompleted() const;
 
@@ -114,8 +134,11 @@ class CXLController : public SimObject
     // Process a request (called by the event)
     void processRequest(const CXLRequest &req);
     
-    // Try to resend packets that failed earlier
-    void trySendRetries();
+    // Process a cache miss (send to memory directly)
+    void processCacheMiss(PacketPtr pkt);
+    
+    // Try to resend packets that failed earlier (to cache or memory)
+    void trySendRetries(bool toCache);
     
     Port &getPort(const std::string &if_name,
                   PortID idx = InvalidPortID) override;

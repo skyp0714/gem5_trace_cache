@@ -28,5 +28,10 @@
 Import('*')
 
 SimObject('CXLCard.py', sim_objects=['CXLController'])
+SimObject('DecompressionEngine.py', sim_objects=['DecompressionEngine'])
+
 Source('cxl_card.cc')
+Source('decompression_engine.cc')
+
 DebugFlag('CXLCard')
+DebugFlag('DecompEngine')

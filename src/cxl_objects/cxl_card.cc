@@ -24,7 +24,8 @@ CXLController::CXLController(const CXLControllerParams &p)
     : SimObject(p),
       traceFilePath(p.trace_file),
       cacheLineSize(p.cache_line_size),
-      memPort(name() + ".mem_side_port", this),
+      cachePort(name() + ".cache_port", this, true),
+      memPort(name() + ".mem_port", this, false),
       totalRequests(0),
       completedRequests(0)
 {
@@ -32,20 +33,28 @@ CXLController::CXLController(const CXLControllerParams &p)
 
 CXLController::~CXLController()
 {
-    // Clean up any packets in the retry queue
-    while (!retryQueue.empty()) {
-        PacketPtr pkt = retryQueue.front();
-        retryQueue.pop();
-        // Don't delete req - it's a shared_ptr that manages its own memory
+    // Clean up any packets in the retry queues
+    while (!cacheRetryQueue.empty()) {
+        PacketPtr pkt = cacheRetryQueue.front();
+        cacheRetryQueue.pop();
+        delete pkt;
+    }
+    
+    while (!memRetryQueue.empty()) {
+        PacketPtr pkt = memRetryQueue.front();
+        memRetryQueue.pop();
         delete pkt;
     }
     
     // Clean up any outstanding request packets
     for (auto& pair : outstandingReqs) {
         if (pair.second->pkt) {
-            // Don't delete req - it's a shared_ptr that manages its own memory
             delete pair.second->pkt;
             pair.second->pkt = nullptr;
+        }
+        if (pair.second->memPkt) {
+            delete pair.second->memPkt;
+            pair.second->memPkt = nullptr;
         }
     }
 }
@@ -53,7 +62,9 @@ CXLController::~CXLController()
 Port &
 CXLController::getPort(const std::string &if_name, PortID idx)
 {
-    if (if_name == "mem_side_port") {
+    if (if_name == "cache_port") {
+        return cachePort;
+    } else if (if_name == "mem_port") {
         return memPort;
     } else {
         return SimObject::getPort(if_name, idx);
@@ -69,21 +80,43 @@ CXLController::CXLRequestPort::recvTimingResp(PacketPtr pkt)
         return true;
     }
     
-    // Handle the response from memory
-    controller->completeRequest(pkt);
+    if (isCache) {
+        // Check if this packet is from cache and has error flag (indicating a miss)
+        bool hit = pkt->cacheResponding() && !pkt->isError();
+        
+        if (hit) {
+            // On cache hit, mark the request as a hit and complete it
+            Addr addr = pkt->getAddr();
+            auto it = controller->outstandingReqs.find(addr);
+            if (it != controller->outstandingReqs.end()) {
+                it->second->cacheHit = true;
+            }
+            controller->completeRequest(pkt);
+        } else {
+            // On cache miss or error, forward to memory
+            controller->processCacheMiss(pkt);
+        }
+    } else {
+        // Response from memory, always complete the request
+        controller->completeRequest(pkt);
+    }
+    
     return true;
 }
 
 void
 CXLController::CXLRequestPort::recvReqRetry()
 {
-    // Retry sending any packets in the retry queue
-    controller->trySendRetries();
+    // Retry sending packets to the appropriate destination
+    controller->trySendRetries(isCache);
 }
 
 void 
-CXLController::trySendRetries()
+CXLController::trySendRetries(bool toCache)
 {
+    auto &retryQueue = toCache ? cacheRetryQueue : memRetryQueue;
+    auto &port = toCache ? cachePort : memPort;
+    
     // Try to send packets from the retry queue
     while (!retryQueue.empty()) {
         PacketPtr pkt = retryQueue.front();
@@ -96,17 +129,18 @@ CXLController::trySendRetries()
         }
         
         // Only try to access packet contents if it's valid
-        DPRINTF(CXLCard, "Attempting to retry packet for addr 0x%lx\n", pkt->getAddr());
+        DPRINTF(CXLCard, "Attempting to retry packet for addr 0x%lx to %s\n", 
+               pkt->getAddr(), toCache ? "cache" : "memory");
         
-        if (!memPort.sendTimingReq(pkt)) {
+        if (!port.sendTimingReq(pkt)) {
             // Still blocked, will retry later
-            DPRINTF(CXLCard, "Retry sending packet for addr 0x%lx still blocked\n", 
-                   pkt->getAddr());
+            DPRINTF(CXLCard, "Retry sending packet for addr 0x%lx to %s still blocked\n", 
+                   pkt->getAddr(), toCache ? "cache" : "memory");
             return;
         }
         
-        DPRINTF(CXLCard, "Successfully resent packet for addr 0x%lx\n", 
-               pkt->getAddr());
+        DPRINTF(CXLCard, "Successfully resent packet for addr 0x%lx to %s\n", 
+               pkt->getAddr(), toCache ? "cache" : "memory");
         retryQueue.pop();
     }
 }
@@ -133,12 +167,20 @@ CXLController::completeRequest(PacketPtr pkt)
     
     CXLRequest* req = it->second;
     
+    // Calculate request latency
+    Tick latency = curTick() - req->sendTick;
+    
+    // We now know definitively if it was a cache hit
+    bool isHit = req->cacheHit;
+    
     // Print completion information
-    DPRINTF(CXLCard, "Completed CXL Request: %s Address: 0x%lx Time: %lu us Compression Ratio: %.2f\n", 
+    DPRINTF(CXLCard, "Completed CXL Request: %s Address: 0x%lx Time: %lu us Compression Ratio: %.2f Latency: %lu ticks (%s)\n", 
            req->isRead ? "Read" : "Write",
            req->addr,
            req->time_us,
-           req->comprRatio);
+           req->comprRatio,
+           latency, 
+           isHit ? "cache hit" : "cache miss");
     
     // Clean up the packet
     // Don't delete req - it's a shared_ptr that manages its own memory
@@ -154,6 +196,42 @@ CXLController::completeRequest(PacketPtr pkt)
     if (allRequestsCompleted()) {
         DPRINTF(CXLCard, "All %d requests completed. Exiting simulation.\n", totalRequests);
         exitSimLoop("All CXL requests completed", 0);
+    }
+}
+
+void
+CXLController::processCacheMiss(PacketPtr pkt)
+{
+    Addr addr = pkt->getAddr();
+    
+    // Find the corresponding request
+    auto it = outstandingReqs.find(addr);
+    if (it == outstandingReqs.end()) {
+        warn("Received cache miss for unknown address: 0x%lx\n", addr);
+        delete pkt;
+        return;
+    }
+    
+    CXLRequest* req = it->second;
+    
+    // Mark as cache miss
+    req->cacheHit = false;
+    
+    DPRINTF(CXLCard, "Cache miss for address 0x%lx, sending to memory\n", addr);
+    
+    // Clean up the cache packet
+    delete pkt;
+    
+    // Send directly to memory
+    if (!sendRequestToMemory(*req)) {
+        // If sending to memory fails, add to retry queue
+        if (req->memPkt) {
+            DPRINTF(CXLCard, "Memory request enqueued for retry: %s Address: 0x%lx\n", 
+                   req->isRead ? "Read" : "Write", req->addr);
+            memRetryQueue.push(req->memPkt);
+        } else {
+            warn("Failed to create memory request for cache miss!");
+        }
     }
 }
 
@@ -176,13 +254,13 @@ CXLController::processRequest(const CXLRequest &reqEvent)
         return;
     }
     
-    // Create and send the request to the cache using the persistent request
-    if (!sendRequest(*trackedReq)) {
-        // Ensure the packet was created before adding to retry queue
+    // First try the cache
+    if (!sendRequestToCache(*trackedReq)) {
+        // If sending fails, add to retry queue
         if (trackedReq->pkt) {
-            DPRINTF(CXLCard, "Request enqueued for retry: %s Address: 0x%lx\n", 
+            DPRINTF(CXLCard, "Cache request enqueued for retry: %s Address: 0x%lx\n", 
                    trackedReq->isRead ? "Read" : "Write", trackedReq->addr);
-            retryQueue.push(trackedReq->pkt);
+            cacheRetryQueue.push(trackedReq->pkt);
         } else {
             warn("Failed to send request but packet was not created!");
         }
@@ -190,7 +268,7 @@ CXLController::processRequest(const CXLRequest &reqEvent)
 }
 
 bool
-CXLController::sendRequest(CXLRequest &req)
+CXLController::sendRequestToCache(CXLRequest &req)
 {
     // Calculate the cache line address
     Addr lineAddr = req.addr & ~(cacheLineSize - 1);
@@ -213,6 +291,11 @@ CXLController::sendRequest(CXLRequest &req)
     
     // Store the packet in the request
     req.pkt = pkt;
+    req.sentToCache = true;
+    req.cacheHit = false; // Default to false until we confirm hit
+    
+    // Record when the request is sent
+    req.sendTick = curTick();
     
     // Add to outstanding requests map
     int index = &req - &requests[0];
@@ -226,13 +309,48 @@ CXLController::sendRequest(CXLRequest &req)
     }
     
     // Print request information
-    DPRINTF(CXLCard, "Sending CXL Request: %s Address: 0x%lx Time: %lu us Compression Ratio: %.2f\n", 
+    DPRINTF(CXLCard, "Sending CXL Request to Cache: %s Address: 0x%lx Time: %lu us Compression Ratio: %.2f\n", 
            req.isRead ? "Read" : "Write",
            req.addr,
            req.time_us,
            req.comprRatio);
     
-    // Send the packet
+    // Send the packet to cache
+    bool success = cachePort.sendTimingReq(pkt);
+    return success;
+}
+
+bool
+CXLController::sendRequestToMemory(CXLRequest &req)
+{
+    // Calculate the cache line address
+    Addr lineAddr = req.addr & ~(cacheLineSize - 1);
+    
+    // Create the request for memory
+    auto memReq = std::make_shared<Request>(
+        lineAddr, cacheLineSize, 0, 0);
+    
+    // Create the packet for direct memory access
+    PacketPtr pkt = new Packet(memReq, req.isRead ? 
+                              MemCmd::ReadReq : MemCmd::WriteReq);
+    
+    // Set packet size and allocate memory if needed
+    pkt->allocate();
+    
+    // If it's a write request, fill with some data
+    if (!req.isRead) {
+        std::memset(pkt->getPtr<uint8_t>(), 0xA5, cacheLineSize);
+    }
+    
+    // Store the memory packet in the request
+    req.memPkt = pkt;
+    
+    // Print request information
+    DPRINTF(CXLCard, "Sending CXL Request directly to Memory: %s Address: 0x%lx\n", 
+           req.isRead ? "Read" : "Write",
+           req.addr);
+    
+    // Send the packet directly to memory
     bool success = memPort.sendTimingReq(pkt);
     return success;
 }
