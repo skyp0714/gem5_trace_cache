@@ -14,6 +14,7 @@
 #include "mem/port.hh"
 #include "mem/packet.hh"
 #include "mem/request.hh"
+#include "base/statistics.hh"  // Add this include for stats
 
 namespace gem5
 {
@@ -28,15 +29,21 @@ struct CXLRequest
     Addr addr;          // Memory address
     uint64_t time_us;   // Time in microseconds
     double comprRatio;  // Compression ratio
-    
+
     // Packet pointer for pending requests
     PacketPtr pkt = nullptr;
     PacketPtr memPkt = nullptr; // For direct memory access on cache miss
-    
+    PacketPtr transPkt = nullptr; // For address translation request
+
     // Request tracking
     Tick sendTick = 0;  // When the request was sent
     bool sentToCache = false; // Whether this request was sent to cache
     bool cacheHit = false;    // Whether this was a cache hit
+
+    // Translation tracking
+    bool translationSent = false;  // Whether translation request was sent
+    bool translationDone = false;  // Whether translation is complete
+    Addr translatedAddr = 0;       // Translated address from translation
 };
 
 // Event class for CXL requests
@@ -46,15 +53,15 @@ class CXLRequestEvent : public Event
     CXLRequest request;
     const std::string _name;
     CXLController *controller;
-    
+
   public:
-    CXLRequestEvent(CXLRequest req, const std::string &name, CXLController *ctrl) 
+    CXLRequestEvent(CXLRequest req, const std::string &name, CXLController *ctrl)
         : request(req), _name(name), controller(ctrl) {}
-    
+
     const std::string name() const override { return _name; }
-    
+
     void process() override;
-    
+
     // Return the CXL request
     const CXLRequest& getRequest() const { return request; }
 };
@@ -64,82 +71,133 @@ class CXLController : public SimObject
   private:
     // File path for trace
     std::string traceFilePath;
-    
+
     // Cache line size
     const unsigned cacheLineSize;
-    
+
     // Vector of CXL requests
     std::vector<CXLRequest> requests;
-    
+
     // Request ports to the memory system
     class CXLRequestPort : public RequestPort
     {
       private:
         CXLController *controller;
         bool isCache; // Whether this is the cache port (vs mem port)
-        
+
       public:
         CXLRequestPort(const std::string &name, CXLController *ctrl, bool is_cache)
             : RequestPort(name), controller(ctrl), isCache(is_cache) {}
-            
+
         bool recvTimingResp(PacketPtr pkt) override;
         void recvReqRetry() override;
-        
+
         bool isToCache() const { return isCache; }
     };
-    
+
     // Port to the cache
     CXLRequestPort cachePort;
-    
+
     // Port directly to memory
     CXLRequestPort memPort;
-    
+
+    // Port for address translation
+    CXLRequestPort translationPort;
+
     // Queues for storing packets that need to be retried
     std::queue<PacketPtr> cacheRetryQueue;
     std::queue<PacketPtr> memRetryQueue;
-    
+    std::queue<PacketPtr> translationRetryQueue;
+
     // Map to track outstanding requests
     std::unordered_map<Addr, CXLRequest*> outstandingReqs;
-    
+
     // Counter for tracking sent and completed requests
     int totalRequests;
     int completedRequests;
-    
+
+    // Statistics
+    struct CXLStats : public statistics::Group
+    {
+        CXLStats(statistics::Group *parent);
+
+        // Mean access latency for all requests
+        statistics::Average meanAccessLatency;
+
+        // Separate stats for read and write operations
+        statistics::Average readLatency;
+        statistics::Average writeLatency;
+
+        // Separate stats for hits and misses
+        statistics::Average hitLatency;
+        statistics::Average missLatency;
+
+        // Separate stats for reads and writes with hits and misses
+        statistics::Average readHitLatency;
+        statistics::Average readMissLatency;
+        statistics::Average writeHitLatency;
+        statistics::Average writeMissLatency;
+
+        // Count statistics for hits and misses
+        statistics::Scalar totalRequests;
+        statistics::Scalar totalHits;
+        statistics::Scalar totalMisses;
+        statistics::Scalar readHits;
+        statistics::Scalar readMisses;
+        statistics::Scalar writeHits;
+        statistics::Scalar writeMisses;
+        statistics::Formula hitRate;
+    } stats;
+
     // Load the trace file
     void loadTrace();
-    
+
     // Schedule all events from the trace
     void scheduleEvents();
-    
+
     // Send a memory request
     bool sendRequest(CXLRequest &req);
-    
+
     // Send a request to the cache
     bool sendRequestToCache(CXLRequest &req);
-    
+
     // Send a request directly to memory (for cache miss)
     bool sendRequestToMemory(CXLRequest &req);
-    
+
+    // Send a request for address translation
+    bool sendAddressTranslationRequest(CXLRequest &req);
+
     // Check if all requests have been completed
     bool allRequestsCompleted() const;
+
+    // Helper class to track original request when sending WriteLineReq
+    class CacheCallbackState : public Packet::SenderState
+    {
+      public:
+        CXLRequest* origReq;
+        PacketPtr origPkt;
+
+        CacheCallbackState(CXLRequest* req, PacketPtr pkt)
+            : origReq(req), origPkt(pkt) {}
+    };
 
   public:
     CXLController(const CXLControllerParams &p);
     ~CXLController();
     void startup() override;
-    
+
     // Called when a request is complete
     void completeRequest(PacketPtr pkt);
-    
+
     // Process a request (called by the event)
     void processRequest(const CXLRequest &req);
-    
+
     // Process a cache miss (send to memory directly)
     void processCacheMiss(PacketPtr pkt);
-    
+
     // Try to resend packets that failed earlier (to cache or memory)
     void trySendRetries(bool toCache);
-    
+
     Port &getPort(const std::string &if_name,
                   PortID idx = InvalidPortID) override;
 };

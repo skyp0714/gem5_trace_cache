@@ -14,7 +14,8 @@ DecompressionEngine::DecompressionEngine(const DecompressionEngineParams &params
       memoryStalled(false),
       responseStalled(false),
       respondingRequest(nullptr),
-      decompressionLatency(params.decompression_latency)
+      decompressionLatency(params.decompression_latency),
+      block_size(params.block_size)
 {
     DPRINTF(DecompEngine, "DecompressionEngine constructor called\n");
 }
@@ -34,20 +35,35 @@ DecompressionEngine::getPort(const std::string &if_name, PortID idx)
 bool
 DecompressionEngine::CXLSidePort::recvTimingReq(PacketPtr pkt)
 {
-    DPRINTF(DecompEngine, "Received request for address %#x\n", pkt->getAddr());
-    
+    DPRINTF(DecompEngine, "Received request for address %#x, size %d bytes\n",
+            pkt->getAddr(), pkt->getSize());
+
     // If memory side port is stalled, we can't accept more requests
     if (owner->memoryStalled) {
         DPRINTF(DecompEngine, "Memory side stalled, can't accept request\n");
         return false;
     }
-    
+
     // Create a new decompression request
     DecompressionRequest* req = new DecompressionRequest(pkt, curTick());
-    
+
+    // Extract compression ratio from the packet if available
+    double comprRatio = 100.0; // Default to no compression
+    if (pkt->hasData() && pkt->getSize() >= 8) {
+        comprRatio = *reinterpret_cast<const double*>(pkt->getConstPtr<uint8_t>());
+        DPRINTF(DecompEngine, "Extracted compression ratio: %.2f%%\n", comprRatio);
+    }
+
+    // Calculate full size after decompression
+    unsigned fullSize = owner->block_size;
+    unsigned compressedSize = pkt->getSize();
+
+    DPRINTF(DecompEngine, "Compressed size: %u bytes, Full size after decompression: %u bytes\n",
+            compressedSize, fullSize);
+
     // Forward the request to memory
     bool success = owner->memPort.sendTimingReq(pkt);
-    
+
     if (success) {
         // Add to pending requests
         owner->pendingRequests[pkt->getAddr()] = req;
@@ -58,7 +74,7 @@ DecompressionEngine::CXLSidePort::recvTimingReq(PacketPtr pkt)
         owner->requestQueue.push(req);
         DPRINTF(DecompEngine, "Memory stalled, queueing request\n");
     }
-    
+
     return true;
 }
 
@@ -66,19 +82,19 @@ void
 DecompressionEngine::CXLSidePort::recvRespRetry()
 {
     DPRINTF(DecompEngine, "Received response retry\n");
-    
+
     if (owner->responseStalled && owner->respondingRequest) {
         // Try to send the response again
         PacketPtr pkt = owner->respondingRequest->pkt;
         bool success = sendTimingResp(pkt);
-        
+
         if (success) {
             // Successfully sent the response
             DPRINTF(DecompEngine, "Sent previously stalled response to CXL controller\n");
             delete owner->respondingRequest;
             owner->respondingRequest = nullptr;
             owner->responseStalled = false;
-            
+
             // Process next request if any
             owner->processNextRequest();
         }
@@ -101,20 +117,20 @@ DecompressionEngine::CXLSidePort::recvFunctional(PacketPtr pkt)
             return;
         }
     }
-    
+
     // Also check the queue
     for (size_t i = 0; i < owner->requestQueue.size(); i++) {
         DecompressionRequest* req = owner->requestQueue.front();
         owner->requestQueue.pop();
-        
+
         if (pkt->trySatisfyFunctional(req->pkt)) {
             owner->requestQueue.push(req);
             return;
         }
-        
+
         owner->requestQueue.push(req);
     }
-    
+
     // Forward to memory
     owner->memPort.sendFunctional(pkt);
 }
@@ -130,7 +146,7 @@ bool
 DecompressionEngine::MemSidePort::recvTimingResp(PacketPtr pkt)
 {
     DPRINTF(DecompEngine, "Received response from memory for address %#x\n", pkt->getAddr());
-    
+
     // Pass to owner for handling
     owner->handleResponse(pkt);
     return true;
@@ -140,7 +156,7 @@ void
 DecompressionEngine::MemSidePort::recvReqRetry()
 {
     DPRINTF(DecompEngine, "Received request retry from memory\n");
-    
+
     // We were stalled; try sending the next request
     owner->memoryStalled = false;
     owner->processNextRequest();
@@ -151,25 +167,25 @@ DecompressionEngine::handleResponse(PacketPtr pkt)
 {
     // Look up the pending request for this response
     auto it = pendingRequests.find(pkt->getAddr());
-    
+
     if (it == pendingRequests.end()) {
         panic("Received response for unknown address %#x\n", pkt->getAddr());
     }
-    
+
     DecompressionRequest* req = it->second;
-    
+
     if (pkt->isRead()) {
         DPRINTF(DecompEngine, "Starting decompression for address %#x\n", pkt->getAddr());
-        
+
         // Schedule decompression to complete after the latency
         scheduleDecompression(req);
     } else {
         // For write requests, we don't need decompression, forward right away
         DPRINTF(DecompEngine, "Write response, forwarding immediately to CXL controller\n");
-        
+
         // Try to send the response
         bool success = cxlPort.sendTimingResp(pkt);
-        
+
         if (success) {
             // Remove from pending requests
             pendingRequests.erase(it);
@@ -190,7 +206,7 @@ DecompressionEngine::scheduleDecompression(DecompressionRequest* req)
     Tick completionTime = curTick() + decompressionLatency;
     DecompressionEvent* event = new DecompressionEvent(this, req);
     schedule(event, completionTime);
-    
+
     DPRINTF(DecompEngine, "Scheduled decompression to complete at tick %llu\n", completionTime);
 }
 
@@ -198,14 +214,14 @@ void
 DecompressionEngine::completeDecompression(DecompressionRequest* req)
 {
     DPRINTF(DecompEngine, "Decompression complete for address %#x\n", req->pkt->getAddr());
-    
+
     // Mark as ready to respond
     req->readyToRespond = true;
-    
+
     // If not already stalled, try to send the response
     if (!responseStalled) {
         bool success = cxlPort.sendTimingResp(req->pkt);
-        
+
         if (success) {
             // Remove from pending requests
             pendingRequests.erase(req->pkt->getAddr());
@@ -227,12 +243,12 @@ DecompressionEngine::processNextRequest()
     if (memoryStalled && !requestQueue.empty()) {
         DecompressionRequest* req = requestQueue.front();
         bool success = memPort.sendTimingReq(req->pkt);
-        
+
         if (success) {
             // Request sent successfully
             requestQueue.pop();
             pendingRequests[req->pkt->getAddr()] = req;
-            
+
             // If queue is empty, we're no longer stalled
             if (requestQueue.empty()) {
                 memoryStalled = false;

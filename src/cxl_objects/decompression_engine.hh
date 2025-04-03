@@ -34,7 +34,7 @@ class DecompressionEngine : public ClockedObject
             : ResponsePort(_name), owner(_owner) {}
 
         bool recvTimingReq(PacketPtr pkt) override;
-        
+
         void recvRespRetry() override;
 
       protected:
@@ -57,7 +57,7 @@ class DecompressionEngine : public ClockedObject
             : RequestPort(_name), owner(_owner) {}
 
         bool recvTimingResp(PacketPtr pkt) override;
-        
+
         void recvReqRetry() override;
     };
 
@@ -110,7 +110,7 @@ class DecompressionEngine : public ClockedObject
         void process() override {
             engine->completeDecompression(req);
         }
-        
+
         const char *description() const override {
             return "DecompressionEngine completion event";
         }
@@ -118,27 +118,30 @@ class DecompressionEngine : public ClockedObject
 
     /// CXL side port
     CXLSidePort cxlPort;
-    
+
     /// Memory side port
     MemSidePort memPort;
 
     /// Queues holding requests that are in progress
     std::queue<DecompressionRequest*> requestQueue;
-    
+
     /// Currently pending requests (being decompressed)
     std::map<Addr, DecompressionRequest*> pendingRequests;
 
     /// Flag for when we're stalled waiting for memory
     bool memoryStalled;
-    
+
     /// Flag for when we're stalled waiting for CXL controller to accept response
     bool responseStalled;
-    
+
     /// Currently responding request
     DecompressionRequest* respondingRequest;
 
     /// Decompression latency in ticks
     const Tick decompressionLatency;
+
+    /// Compression block size in bytes
+    const unsigned block_size;
 
   public:
     DecompressionEngine(const DecompressionEngineParams &params);

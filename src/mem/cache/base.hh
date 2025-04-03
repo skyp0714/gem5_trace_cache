@@ -987,6 +987,9 @@ class BaseCache : public ClockedObject
      * Normally this is all possible memory addresses. */
     const AddrRangeList addrRanges;
 
+    /** Flag to indicate if memory-side port is connected */
+    bool memSidePortConnected;
+
   public:
     /** System we are currently operating in. */
     System *system;
@@ -1326,6 +1329,11 @@ class BaseCache : public ClockedObject
      */
     bool coalesce() const;
 
+    /**
+     * Check if the memory-side port is connected
+     * @return true if memory-side port is connected
+     */
+    bool isMemSideConnected() const { return memSidePortConnected; }
 
     /**
      * Cache block visitor that writes back dirty cache blocks using

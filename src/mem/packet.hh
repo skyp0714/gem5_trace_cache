@@ -360,7 +360,10 @@ class Packet : public Printable, public Extensible<Packet>
 
         // Signal block present to squash prefetch and cache evict packets
         // through express snoop flag
-        BLOCK_CACHED          = 0x00010000
+        BLOCK_CACHED          = 0x00010000,
+
+        // Error flag to indicate that a packet represents an error response
+        ERROR                 = 0x00020000
     };
 
     Flags flags;
@@ -496,6 +499,9 @@ class Packet : public Printable, public Extensible<Packet>
         std::string *curPrefixPtr;
 
       public:
+        // Add a typedef for the Map type used in packet.cc
+        typedef std::map<FlagsType, std::string> Map;
+
         std::ostream &os;
         const int verbosity;
 
@@ -619,7 +625,7 @@ class Packet : public Printable, public Extensible<Packet>
     }
     bool isLLSC() const              { return cmd.isLLSC(); }
     bool isLockedRMW() const         { return cmd.isLockedRMW(); }
-    bool isError() const             { return cmd.isError(); }
+    bool isError() const             { return cmd.isError() || flags.isSet(ERROR); }
     bool isPrint() const             { return cmd.isPrint(); }
     bool isFlush() const             { return cmd.isFlush(); }
 
@@ -803,6 +809,11 @@ class Packet : public Printable, public Extensible<Packet>
     }
 
     void copyError(Packet *pkt) { assert(pkt->isError()); cmd = pkt->cmd; }
+
+    /**
+     * Set the ERROR flag to indicate this packet represents an error response.
+     */
+    void setError() { flags.set(ERROR); }
 
     Addr getAddr() const { assert(flags.isSet(VALID_ADDR)); return addr; }
     /**
