@@ -181,7 +181,7 @@ CXLController::completeDependentRequests(CXLRequest* primaryReq) // Renamed para
     // Complete all dependent requests: update stats and log, remove from outstandingReqs if needed
     for (CXLRequest* depReq : dependents_copy) { // Use copy
         // Mark as cache miss (since it waited for memory)
-        depReq->cacheHit = false;
+        // depReq->cacheHit = false; // REMOVED: Consider dependent requests as hits if merged
 
         // Complete the dependent request - stats/logging/removal handled inside
         completeRequest(depReq, nullptr); // Pass nullptr as response packet
@@ -407,13 +407,22 @@ CXLController::CXLRequestPort::recvTimingResp(PacketPtr pkt)
 void
 CXLController::CXLRequestPort::recvReqRetry()
 {
-    // Retry sending packets to the appropriate destination
-    controller->trySendRetries(isCache);
+    // Retry sending packets to the appropriate destination based on port name
+    if (name() == controller->cachePort.name()) {
+        controller->trySendRetries(true); // Retry cache queue
+    } else if (name() == controller->memPort.name()) {
+        controller->trySendRetries(false); // Retry memory queue
+    } else if (name() == controller->translationPort.name()) {
+        controller->trySendTranslationRetries(); // Retry translation queue
+    } else {
+        panic("Unknown port received retry: %s", name());
+    }
 }
 
 void
 CXLController::trySendRetries(bool toCache)
 {
+    // This function now only handles cacheRetryQueue and memRetryQueue
     auto &retryQueue = toCache ? cacheRetryQueue : memRetryQueue;
     auto &port = toCache ? cachePort : memPort;
 
@@ -423,7 +432,7 @@ CXLController::trySendRetries(bool toCache)
 
         // Safety check for null packet
         if (!pkt) {
-            warn("Null packet in retry queue!");
+            warn("Null packet in %s retry queue!", toCache ? "cache" : "memory");
             retryQueue.pop();
             continue;
         }
@@ -442,6 +451,37 @@ CXLController::trySendRetries(bool toCache)
         DPRINTF(CXLCard, "Successfully resent packet for addr 0x%lx to %s\n",
                pkt->getAddr(), toCache ? "cache" : "memory");
         retryQueue.pop();
+    }
+}
+
+// ADDED function to handle translation retries
+void
+CXLController::trySendTranslationRetries()
+{
+    // Try to send packets from the translation retry queue
+    while (!translationRetryQueue.empty()) {
+        PacketPtr pkt = translationRetryQueue.front();
+
+        // Safety check for null packet
+        if (!pkt) {
+            warn("Null packet in translation retry queue!");
+            translationRetryQueue.pop();
+            continue;
+        }
+
+        DPRINTF(CXLCard, "Attempting to retry translation packet for addr 0x%lx\n",
+               pkt->getAddr());
+
+        if (!translationPort.sendTimingReq(pkt)) {
+            // Still blocked, will retry later
+            DPRINTF(CXLCard, "Retry sending translation packet for addr 0x%lx still blocked\n",
+                   pkt->getAddr());
+            return;
+        }
+
+        DPRINTF(CXLCard, "Successfully resent translation packet for addr 0x%lx\n",
+               pkt->getAddr());
+        translationRetryQueue.pop();
     }
 }
 
@@ -831,7 +871,7 @@ CXLController::sendAddressTranslationRequest(CXLRequest &req)
     // Send request
     bool success = translationPort.sendTimingReq(pkt);
     if (!success) {
-        DPRINTF(CXLCard, "Translation request failed for Req %p, adding transPkt %p to retry queue\n", &req, pkt);
+        DPRINTF(CXLCard, "Translation port busy, adding transPkt %p to retry queue for Req %p\n", pkt, &req); // MODIFIED message
         translationRetryQueue.push(pkt);
         // Return true because we accepted the request (it's queued)
         return true;
@@ -909,6 +949,7 @@ CXLController::processRequest(const CXLRequest &reqEvent)
         // Mark this request as waiting
         trackedReq->isWaitingForMemory = true;
         trackedReq->waitingForRequest = primaryReq;
+        trackedReq->cacheHit = true; // ADDED: Mark merged request as a hit
         // Set sendTick to 0 or primary's sendTick? Let's use 0 for now.
         trackedReq->sendTick = 0; // sendTick is still used to track when sent to cache/mem
 

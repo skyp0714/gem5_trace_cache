@@ -119,9 +119,9 @@ system.membus = SystemXBar()
 system.l1cache = Cache(
     size=args.l1_size,
     assoc=args.l1_assoc,
-    tag_latency=2,
-    data_latency=2,
-    response_latency=2,
+    tag_latency=50,
+    data_latency=50,
+    response_latency=50,
     mshrs=4,
     tgts_per_mshr=20,
 )
@@ -148,9 +148,10 @@ system.mem_ctrl.port = system.membus.mem_side_ports
 # Connect the translation port directly to the main membus
 system.cxl_controller.translation_port = system.membus.cpu_side_ports
 
-# Make sure decompression engine uses the same block size
+# Make sure decompression engine uses the same block size and num_engines
 system.decompression_engine = DecompressionEngine(
-    block_size=args.compression_block_size
+    block_size=args.compression_block_size,
+    num_engines=4,  # Set the number of engines (can be parameterized later if needed)
 )
 system.cxl_controller.mem_port = system.decompression_engine.cxl_side_port
 system.decompression_engine.mem_side_port = system.membus.cpu_side_ports
@@ -174,6 +175,9 @@ print(
     f"L1 Cache: {args.l1_size}, {args.l1_assoc}-way, {args.compression_block_size}B lines"
 )
 print(f"Compression block size: {args.compression_block_size}B")
+print(
+    f"Decompression Engines: {system.decompression_engine.num_engines}"
+)  # ADDED
 
 # Run the simulation
 exit_event = m5.simulate()

@@ -213,6 +213,9 @@ class CXLController : public SimObject
     // Try to resend packets that failed earlier (to cache or memory)
     void trySendRetries(bool toCache);
 
+    // Try to resend translation packets that failed earlier
+    void trySendTranslationRetries(); // ADDED
+
     // Dump final statistics to the output file
     void dumpStats(); // Add this function declaration
 

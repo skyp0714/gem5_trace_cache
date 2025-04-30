@@ -2,6 +2,7 @@
 #define __CXL_DECOMPRESSION_ENGINE_HH__
 
 #include <queue>
+#include <map> // Include map
 
 #include "mem/port.hh"
 #include "params/DecompressionEngine.hh"
@@ -15,7 +16,8 @@ namespace gem5
  * The DecompressionEngine is responsible for simulating the decompression
  * of data between memory and the CXL controller. It receives requests from
  * the CXL controller, forwards them to memory, and applies a decompression
- * latency to responses before sending them back.
+ * latency to responses before sending them back. It can simulate multiple
+ * parallel decompression units.
  */
 class DecompressionEngine : public ClockedObject
 {
@@ -68,7 +70,7 @@ class DecompressionEngine : public ClockedObject
     struct DecompressionRequest {
         PacketPtr pkt;
         Tick arrivalTime;
-        bool readyToRespond;
+        bool readyToRespond; // Flag used for response stalling
 
         DecompressionRequest(PacketPtr _pkt, Tick _time)
             : pkt(_pkt), arrivalTime(_time), readyToRespond(false) {}
@@ -80,9 +82,14 @@ class DecompressionEngine : public ClockedObject
     void handleResponse(PacketPtr pkt);
 
     /**
-     * Schedule decompression to complete
+     * Try to schedule the next available decompression task if an engine is free.
      */
-    void scheduleDecompression(DecompressionRequest* req);
+    void tryScheduleDecompression(); // CHANGED: Renamed and modified logic
+
+    /**
+     * Schedule decompression event for a specific request, assuming an engine is available.
+     */
+    void scheduleDecompression(DecompressionRequest* req); // CHANGED: Now takes request
 
     /**
      * Complete decompression and send response
@@ -90,9 +97,9 @@ class DecompressionEngine : public ClockedObject
     void completeDecompression(DecompressionRequest* req);
 
     /**
-     * Process next pending request
+     * Try sending requests queued due to memory port being busy.
      */
-    void processNextRequest();
+    void trySendMemoryRetries(); // ADDED
 
     /**
      * Event scheduled when decompression completes
@@ -122,23 +129,35 @@ class DecompressionEngine : public ClockedObject
     /// Memory side port
     MemSidePort memPort;
 
-    /// Queues holding requests that are in progress
-    std::queue<DecompressionRequest*> requestQueue;
+    /// Queue for requests waiting for memory port retry
+    std::queue<DecompressionRequest*> memoryRetryQueue; // ADDED
 
-    /// Currently pending requests (being decompressed)
-    std::map<Addr, DecompressionRequest*> pendingRequests;
+    /// Queue for requests that received memory response and wait for decompression engine
+    std::queue<DecompressionRequest*> decompression_queue; // ADDED
 
-    /// Flag for when we're stalled waiting for memory
-    bool memoryStalled;
+    /// Queue for requests that finished decompression but are waiting for CXL port
+    std::queue<DecompressionRequest*> completed_queue; // ADDED
+
+    /// Map of requests sent to memory, waiting for response (key: address)
+    std::map<Addr, DecompressionRequest*> pendingRequests; // CHANGED: Use map
+
+    /// Flag for when we're stalled waiting for memory port to become available
+    bool memoryStalled; // Kept for memory port retry
 
     /// Flag for when we're stalled waiting for CXL controller to accept response
     bool responseStalled;
 
-    /// Currently responding request
-    DecompressionRequest* respondingRequest;
+    /// Request whose response is currently stalled waiting for CXL controller
+    DecompressionRequest* respondingRequest; // CHANGED: Stores request now
 
     /// Compression block size in bytes
     const unsigned block_size;
+
+    /// Number of parallel decompression engines
+    const unsigned num_engines; // ADDED
+
+    /// Number of currently active decompression operations
+    unsigned active_decompressions; // ADDED
 
   public:
     DecompressionEngine(const DecompressionEngineParams &params);
