@@ -57,11 +57,14 @@ CXLController::CXLController(const CXLControllerParams &p)
     }
 
     // Write the header to the output file with fixed widths
+    // Add ArrivalTime(us) column (width 15)
     outputFile << std::left << std::setw(18) << "Address"
+               << std::setw(15) << "ArrivalTime(us)" // ADDED column
                << std::setw(22) << "CompressionRatio(%)"
                << std::setw(15) << "Latency(ns)"
                << std::setw(8) << "IsHit" << std::endl;
-    outputFile << std::string(18 + 22 + 15 + 8, '-') << std::endl; // Separator line
+    // Adjust separator line length
+    outputFile << std::string(18 + 15 + 22 + 15 + 8, '-') << std::endl; // Separator line
 
     // Initialize summary stats (already done via member initialization)
     totalLatencySum = 0.0;
@@ -137,7 +140,8 @@ CXLController::dumpStats()
 
     // Write summary statistics to the output file with fixed widths
     if (outputFile.is_open()) {
-        outputFile << "\n" << std::string(18 + 22 + 15 + 8, '-') << std::endl;
+        // Add separator before summary
+        outputFile << "\n" << std::string(18 + 15 + 22 + 15 + 8, '-') << std::endl; // Adjusted width
         outputFile << "--- Summary ---" << std::endl;
         outputFile << std::fixed << std::setprecision(2); // Set precision for output
 
@@ -162,30 +166,29 @@ CXLController::completeDependentRequests(CXLRequest* primaryReq) // Renamed para
 {
     auto depIt = dependentReqs.find(primaryReq);
     if (depIt == dependentReqs.end()) {
-        DPRINTF(CXLCard, "No dependent requests for primary addr 0x%lx (req %p)\n",
-               primaryReq->translatedAddr & ~(cacheLineSize - 1), primaryReq);
         return;
     }
 
     // Get the list of dependent requests
-    auto& dependents = depIt->second;
+    // Make a copy in case completeRequest modifies the map/vector indirectly
+    std::vector<CXLRequest*> dependents_copy = depIt->second; // ADDED COPY
 
     DPRINTF(CXLCard, "Completing %u dependent requests for primary addr 0x%lx (req %p)\n",
-            dependents.size(), primaryReq->translatedAddr & ~(cacheLineSize - 1), primaryReq);
+            dependents_copy.size(), primaryReq->addr, primaryReq); // Use original addr, use copy size
 
     // --- Cache fill logic removed from here ---
 
     // Complete all dependent requests: update stats and log, remove from outstandingReqs if needed
-    for (CXLRequest* depReq : dependents) {
+    for (CXLRequest* depReq : dependents_copy) { // Use copy
         // Mark as cache miss (since it waited for memory)
         depReq->cacheHit = false;
 
         // Complete the dependent request - stats/logging/removal handled inside
-        DPRINTF(CXLCard, "Completing dependent request %p (addr 0x%lx)\n", depReq, depReq->addr);
         completeRequest(depReq, nullptr); // Pass nullptr as response packet
     }
 
     // Remove the entry from dependentReqs map after all dependents are processed
+    // Use the original iterator depIt, not based on the copy
     dependentReqs.erase(depIt);
 
     // Check for simulation exit after processing dependents
@@ -267,7 +270,7 @@ CXLController::CXLRequestPort::recvTimingResp(PacketPtr pkt)
             DPRINTF(CXLCard, "Cache %s hit for address 0x%lx (Req: %p)\n",
                    req->isRead ? "read" : "write", addr, req);
             req->cacheHit = true;
-            // Pass the actual response packet `pkt`
+            // Complete the request. This will also handle dependents.
             controller->completeRequest(req, pkt);
         } else {
             DPRINTF(CXLCard, "Cache %s miss for address 0x%lx (Req: %p)\n",
@@ -328,7 +331,7 @@ CXLController::CXLRequestPort::recvTimingResp(PacketPtr pkt)
         delete pkt;
         req->transPkt = nullptr; // Clear pointer in request
 
-    } else { // Memory Port Path
+    } else { // Memory Port Path (Simplified)
         Addr addr = pkt->getAddr(); // Aligned translated address
         Addr lineAddr = addr & ~(controller->cacheLineSize - 1);
 
@@ -338,7 +341,7 @@ CXLController::CXLRequestPort::recvTimingResp(PacketPtr pkt)
         auto memReqIt = controller->outstandingMemReqs.find(lineAddr);
         if (memReqIt == controller->outstandingMemReqs.end()) {
             warn("Received memory response for address 0x%lx, but no matching outstanding memory request found.\n", lineAddr);
-            delete pkt;
+            delete pkt; // Clean up incoming packet
             return true;
         }
 
@@ -346,27 +349,18 @@ CXLController::CXLRequestPort::recvTimingResp(PacketPtr pkt)
         DPRINTF(CXLCard, "Found primary memory request (req %p, orig_addr 0x%lx) for translated addr 0x%lx\n",
                primaryReq, primaryReq->addr, lineAddr);
 
-        // Store the memory response packet in the primary request *before* erasing from outstandingMemReqs
-        if (!primaryReq->memPkt) {
-             primaryReq->memPkt = pkt;
-        } else if (primaryReq->memPkt != pkt) {
-             warn("Primary request %p already had a different memPkt %p assigned when receiving response %p",
-                  primaryReq, primaryReq->memPkt, pkt);
-             delete pkt;
-             return true;
-        }
-
-        controller->outstandingMemReqs.erase(memReqIt);
-
-        // Check if the primary request was already completed
+        // Check if already completed first
         if (primaryReq->completed) {
              DPRINTF(CXLCard, "Primary request %p already completed, ignoring memory response.\n", primaryReq);
-             delete primaryReq->memPkt;
-             primaryReq->memPkt = nullptr;
+             controller->outstandingMemReqs.erase(memReqIt); // Still erase from map
+             delete pkt; // Delete the incoming packet
              return true;
         }
 
-        // --- Cache Fill Logic Moved Here ---
+        // Remove from outstanding memory requests map *before* potential cache fill send
+        controller->outstandingMemReqs.erase(memReqIt);
+
+        // --- Cache Fill Logic ---
         // If this was a read miss, send a cache fill request
         if (primaryReq->isRead && !primaryReq->cacheHit) {
             Addr cacheLineAddr = primaryReq->addr & ~(controller->cacheLineSize - 1);
@@ -374,15 +368,15 @@ CXLController::CXLRequestPort::recvTimingResp(PacketPtr pkt)
             PacketPtr fillPkt = new Packet(fillReq, MemCmd::WriteLineReq);
             fillPkt->allocate();
 
-            // Copy data from the memory response packet
-            if (primaryReq->memPkt && primaryReq->memPkt->hasData()) {
-                size_t copySize = std::min((size_t)primaryReq->memPkt->getSize(), (size_t)fillPkt->getSize());
+            // Copy data from the memory response packet (pkt)
+            if (pkt && pkt->hasData()) { // Use pkt directly
+                size_t copySize = std::min((size_t)pkt->getSize(), (size_t)fillPkt->getSize());
                 std::memcpy(fillPkt->getPtr<uint8_t>(),
-                           primaryReq->memPkt->getConstPtr<uint8_t>(),
+                           pkt->getConstPtr<uint8_t>(), // Use pkt directly
                            copySize);
-                DPRINTF(CXLCard, "Copied %u bytes from memPkt to fillPkt for primary req %p\n", copySize, primaryReq);
+                DPRINTF(CXLCard, "Copied %u bytes from mem response pkt to fillPkt for primary req %p\n", copySize, primaryReq);
             } else {
-                 warn("Primary request memPkt (req %p) has no data or is null for cache fill in recvTimingResp", primaryReq);
+                 warn("Memory response pkt has no data or is null for cache fill in recvTimingResp (req %p)", primaryReq);
             }
 
             // Try to send the cache fill request
@@ -396,27 +390,15 @@ CXLController::CXLRequestPort::recvTimingResp(PacketPtr pkt)
         }
         // --- End Cache Fill Logic ---
 
-
-        // Process any dependent requests that were waiting for this response
-        controller->completeDependentRequests(primaryReq);
-
-        // Now, complete the primary request itself
-        if (primaryReq->completed) {
-             DPRINTF(CXLCard, "Primary request %p completed during dependent processing, ignoring memory response for primary.\n", primaryReq);
-             delete primaryReq->memPkt;
-             primaryReq->memPkt = nullptr;
-             return true;
-        }
-
-        // Mark primary as cache miss (redundant if already false, but safe)
+        // Mark primary as cache miss
         primaryReq->cacheHit = false;
 
-        // Complete the primary request
+        // Complete the primary request. This handles dependents and removal from outstandingReqs.
+        // Pass nullptr for respPkt as we are handling the memory response pkt separately.
         controller->completeRequest(primaryReq, nullptr);
 
-        // Clean up the original response packet
-        delete primaryReq->memPkt;
-        primaryReq->memPkt = nullptr;
+        // Clean up the memory response packet
+        delete pkt; // Delete the incoming packet here
     }
 
     return true;
@@ -480,21 +462,35 @@ CXLController::completeRequest(CXLRequest* req, PacketPtr respPkt)
         return;
     }
 
-    // Mark as completed
+    // Mark as completed FIRST, before processing dependents, to avoid loops
     req->completed = true;
 
-    // Calculate request latency in ticks
-    Tick latency_ticks = curTick() - req->sendTick;
+    // Calculate request latency in ticks using arrivalTick
+    Tick latency_ticks = 0;
+    if (req->arrivalTick > 0) { // Ensure arrivalTick was set
+        latency_ticks = curTick() - req->arrivalTick;
+    } else {
+        warn("Request %p completed with arrivalTick=0, latency calculation might be inaccurate.", req);
+        // Fallback to sendTick if arrivalTick is missing? Or just 0?
+        if (req->sendTick > 0) {
+             latency_ticks = curTick() - req->sendTick;
+        } else {
+             latency_ticks = 0; // Or handle differently
+        }
+    }
+
     double latency_ns = static_cast<double>(latency_ticks) / 1000.0;
 
-    // Determine hit/miss status (req->cacheHit should be set correctly by caller)
+    // Determine hit/miss status (req->cacheHit should be set correctly by caller or dependent logic)
     bool isHit = req->cacheHit;
     bool isRead = req->isRead;
 
     // --- Logging to File ---
     if (outputFile.is_open()) {
         // Use manipulators for fixed-width output
+        // Add req->time_us for ArrivalTime(us)
         outputFile << std::left << "0x" << std::hex << std::setw(16) << req->addr << std::dec // Address (18 width total)
+                   << std::fixed << std::setprecision(3) << std::setw(15) << req->time_us // Arrival Time (us) // ADDED
                    << std::fixed << std::setprecision(2) << std::setw(22) << req->comprRatio // Compression Ratio
                    << std::setw(15) << latency_ns // Latency
                    << std::setw(8) << (isHit ? "1" : "0") // IsHit
@@ -558,25 +554,38 @@ CXLController::completeRequest(CXLRequest* req, PacketPtr respPkt)
     Addr lineAddr = req->addr & ~(cacheLineSize - 1);
     auto range = outstandingReqs.equal_range(lineAddr);
     bool removed = false;
-    for (auto it = range.first; it != range.second; ++it) {
+
+    // Use a more robust loop for erasing from multimap
+    for (auto it = range.first; it != range.second; ) { // Remove ++it here
         if (it->second == req) {
-            outstandingReqs.erase(it);
+            it = outstandingReqs.erase(it); // Erase and update iterator
             removed = true;
             DPRINTF(CXLCard, "Removed request %p from outstandingReqs for addr 0x%lx\n", req, lineAddr);
+            // Break assuming only one instance of the exact req pointer exists
             break;
+        } else {
+            ++it; // Increment only if not erased
         }
     }
+
     if (!removed) {
-         warn("Could not find request %p in outstandingReqs to remove for addr 0x%lx", req, lineAddr);
+         // This might happen if a dependent request is completed before the primary? Should not happen with new logic.
+         // Or if called multiple times for the same request.
+         DPRINTF(CXLCard, "Could not find request %p in outstandingReqs to remove for addr 0x%lx (maybe already removed or pointer mismatch?)\n", req, lineAddr); // MODIFIED message
     }
 
+    // --- Complete Dependent Requests ---
+    // If this was a primary request, complete its dependents
+    if (!req->isWaitingForMemory) {
+        completeDependentRequests(req);
+    }
 
     // Increment completed requests counter (internal tracking)
     completedRequests++;
 
     // If all requests are completed, exit the simulation
     // Compare completedRequests with totalRequests loaded from trace
-    if (completedRequests == totalRequests && totalRequests > 0) {
+    if (allRequestsCompleted()) { // Use the helper function
         DPRINTF(CXLCard, "All %d requests completed. Exiting simulation.\n", totalRequests);
         // Exit simulation normally, which will trigger the exit callback
         exitSimLoop("All CXL requests completed", 0);
@@ -720,32 +729,10 @@ CXLController::sendRequestToMemory(CXLRequest &req)
     Addr lineAddr = req.translatedAddr & ~(cacheLineSize - 1);
     DPRINTF(CXLCard, "Using translated address 0x%lx for memory request (Req %p)\n", lineAddr, &req);
 
+    // --- Merging logic removed from here ---
     // Check if there's already a pending request for this address
-    auto existingIt = outstandingMemReqs.find(lineAddr);
-    if (existingIt != outstandingMemReqs.end()) {
-        // Found an existing request to the same address
-        CXLRequest* existingReq = existingIt->second;
-
-        // Only merge read requests (not writes)
-        if (req.isRead) {
-            DPRINTF(CXLCard, "Found existing memory request for addr 0x%lx (Primary Req %p), merging current Req %p\n",
-                   lineAddr, existingReq, &req);
-
-            // Mark this request as waiting for the existing request
-            req.isWaitingForMemory = true;
-            req.waitingForRequest = existingReq;
-
-            // Add this request to the dependent requests list
-            dependentReqs[existingReq].push_back(&req);
-
-            DPRINTF(CXLCard, "Added dependent request %p to primary request %p - now %u dependent requests\n",
-                  &req, existingReq, dependentReqs[existingReq].size());
-
-            // Don't need to send another request
-            return true;
-        }
-         // else: Don't merge writes, proceed to send a new request
-    }
+    // auto existingIt = outstandingMemReqs.find(lineAddr);
+    // if (existingIt != outstandingMemReqs.end()) { ... }
 
     // Calculate the compressed size based on compression ratio
     // comprRatio is in percentage, e.g. 50.0 means 50% of original size
@@ -876,12 +863,81 @@ CXLController::processRequest(const CXLRequest &reqEvent)
         return;
     }
 
+    // Record arrival time when the request is first processed
+    if (trackedReq->arrivalTick == 0) { // Only set it once
+        trackedReq->arrivalTick = curTick();
+    }
+
     DPRINTF(CXLCard, "Processing request %p: Addr 0x%lx Time %.3f\n", trackedReq, trackedReq->addr, trackedReq->time_us);
+
+    // --- Early Merging Logic ---
+    Addr blockAddr = trackedReq->addr & ~(cacheLineSize - 1);
+    CXLRequest* primaryReq = nullptr;
+
+    // Check if any request for this block is already outstanding
+    auto range = outstandingReqs.equal_range(blockAddr);
+    for (auto it = range.first; it != range.second; ++it) {
+        // Find the primary request (the one that isn't waiting for another)
+        // AND ensure it's not already completed (important addition)
+        if (!it->second->isWaitingForMemory && !it->second->completed) { // ADDED check for !completed
+            primaryReq = it->second;
+            break;
+        }
+    }
+
+    // Add the current request to outstandingReqs regardless
+    // Check if it's already there before inserting (to avoid duplicates if processRequest is called multiple times for the same event)
+    bool already_outstanding = false;
+    // Re-iterate range to check if trackedReq is already present
+    for (auto it = range.first; it != range.second; ++it) {
+        if (it->second == trackedReq) {
+            already_outstanding = true;
+            break;
+        }
+    }
+    if (!already_outstanding) {
+        outstandingReqs.insert({blockAddr, trackedReq});
+        DPRINTF(CXLCard, "Added request %p to outstandingReqs for addr 0x%lx\n", trackedReq, blockAddr);
+    }
+
+
+    if (primaryReq != nullptr && primaryReq != trackedReq) {
+        // Found an existing primary request for this block, merge the new one
+        DPRINTF(CXLCard, "Found existing primary request %p for block 0x%lx, merging current Req %p\n",
+               primaryReq, blockAddr, trackedReq);
+
+        // Mark this request as waiting
+        trackedReq->isWaitingForMemory = true;
+        trackedReq->waitingForRequest = primaryReq;
+        // Set sendTick to 0 or primary's sendTick? Let's use 0 for now.
+        trackedReq->sendTick = 0; // sendTick is still used to track when sent to cache/mem
+
+        // Add this request to the dependent requests list of the primary
+        dependentReqs[primaryReq].push_back(trackedReq);
+
+        DPRINTF(CXLCard, "Added dependent request %p to primary request %p - now %u dependent requests\n",
+              trackedReq, primaryReq, dependentReqs[primaryReq].size());
+
+        // Do not proceed with cache/translation lookup for the merged request
+        return;
+    } else if (primaryReq == trackedReq) {
+         // This case should ideally not happen if trackedReq was just added,
+         // unless it somehow got added before and we are processing it again?
+         warn("processRequest called for request %p which seems to be already the primary outstanding request.", trackedReq);
+         // Proceed as if it's a new primary request anyway.
+    }
+
+
+    // --- End Early Merging Logic ---
+
+    // If we reached here, this is a new primary request for this block
+    DPRINTF(CXLCard, "Request %p is primary for block 0x%lx\n", trackedReq, blockAddr);
 
     // Send address translation request in parallel with cache request
     sendAddressTranslationRequest(*trackedReq);
 
     // First try the cache
+    // sendRequestToCache sets the sendTick
     sendRequestToCache(*trackedReq);
     // sendRequestToCache now handles adding to retry queue internally if needed
 }

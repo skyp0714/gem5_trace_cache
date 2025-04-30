@@ -14,10 +14,8 @@ DecompressionEngine::DecompressionEngine(const DecompressionEngineParams &params
       memoryStalled(false),
       responseStalled(false),
       respondingRequest(nullptr),
-      decompressionLatency(params.decompression_latency),
       block_size(params.block_size)
 {
-    DPRINTF(DecompEngine, "DecompressionEngine constructor called\n");
 }
 
 Port &
@@ -67,7 +65,6 @@ DecompressionEngine::CXLSidePort::recvTimingReq(PacketPtr pkt)
     if (success) {
         // Add to pending requests
         owner->pendingRequests[pkt->getAddr()] = req;
-        DPRINTF(DecompEngine, "Request sent to memory\n");
     } else {
         // Memory is stalled
         owner->memoryStalled = true;
@@ -195,6 +192,7 @@ DecompressionEngine::handleResponse(PacketPtr pkt)
             responseStalled = true;
             req->readyToRespond = true;
             respondingRequest = req;
+            DPRINTF(DecompEngine, "CXL port stalled, delaying response for %#x\n", pkt->getAddr());
         }
     }
 }
@@ -238,10 +236,12 @@ DecompressionEngine::completeDecompression(DecompressionRequest* req)
             // Stalled
             responseStalled = true;
             respondingRequest = req;
+            DPRINTF(DecompEngine, "CXL port stalled, delaying response for %#x\n", req->pkt->getAddr());
         }
     } else {
         // Already stalled, will be sent when unstalled
         // Keep it in pendingRequests
+        DPRINTF(DecompEngine, "Already stalled, response for %#x will be sent later\n", req->pkt->getAddr());
     }
 }
 

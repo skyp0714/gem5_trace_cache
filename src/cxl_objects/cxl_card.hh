@@ -37,7 +37,8 @@ struct CXLRequest
     PacketPtr transPkt = nullptr; // For address translation request
 
     // Request tracking
-    Tick sendTick = 0;  // When the request was sent
+    Tick arrivalTick = 0; // When the request arrived at the controller // ADDED
+    Tick sendTick = 0;  // When the request was sent to cache/memory
     bool sentToCache = false; // Whether this request was sent to cache
     bool cacheHit = false;    // Whether this was a cache hit
 

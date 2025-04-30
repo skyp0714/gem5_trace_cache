@@ -137,9 +137,6 @@ class DecompressionEngine : public ClockedObject
     /// Currently responding request
     DecompressionRequest* respondingRequest;
 
-    /// Decompression latency in ticks
-    const Tick decompressionLatency;
-
     /// Compression block size in bytes
     const unsigned block_size;
 
