@@ -12,7 +12,9 @@ class DecompressionEngine(ClockedObject):
     mem_side_port = RequestPort("Port connected to memory")
 
     # Parameters
+    # Note: decompression_latency is still kept for backward compatibility,
+    # but is no longer used. Latency is now calculated based on block size.
     decompression_latency = Param.Cycles(
-        100, "Number of cycles it takes to decompress data"
+        100, "Number of cycles for backward compatibility (no longer used)"
     )
     block_size = Param.Int(64, "Compression block size in bytes (64B to 4KB)")

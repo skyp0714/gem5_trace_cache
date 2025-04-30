@@ -202,12 +202,20 @@ DecompressionEngine::handleResponse(PacketPtr pkt)
 void
 DecompressionEngine::scheduleDecompression(DecompressionRequest* req)
 {
+    // Calculate decompression latency proportional to block size
+    // Base latency is 200ns for 4KB blocks
+    Tick decompTime = (block_size * 200000) / 4096; // Convert 200ns to ps (1ns = 1000ps)
+
+    // Minimum latency of 10ns for very small blocks
+    decompTime = std::max(decompTime, Tick(10000));
+
     // Schedule decompression event
-    Tick completionTime = curTick() + decompressionLatency;
+    Tick completionTime = curTick() + decompTime;
     DecompressionEvent* event = new DecompressionEvent(this, req);
     schedule(event, completionTime);
 
-    DPRINTF(DecompEngine, "Scheduled decompression to complete at tick %llu\n", completionTime);
+    DPRINTF(DecompEngine, "Scheduled decompression to complete at tick %llu (latency: %llu ps, block size: %u bytes)\n",
+           completionTime, decompTime, block_size);
 }
 
 void

@@ -53,11 +53,12 @@ CXLController::CXLController(const CXLControllerParams &p)
       cachePort(name() + ".cache_port", this, true),
       memPort(name() + ".mem_port", this, false),
       translationPort(name() + ".translation_port", this, false),
-      stats(this),  // Initialize stats group
       totalRequests(0),
-      completedRequests(0)
+      completedRequests(0),
+      stats(this)  // Fix initialization order to match declaration order
 {
 }
+
 
 CXLController::~CXLController()
 {
@@ -95,21 +96,52 @@ CXLController::~CXLController()
             pair.second->transPkt = nullptr;
         }
     }
+
+    // Clean up dependency tracking data structures
+    dependentReqs.clear();
+    outstandingMemReqs.clear();
+    outstandingReqs.clear();
 }
 
-Port &
-CXLController::getPort(const std::string &if_name, PortID idx)
+void
+CXLController::completeDependentRequests(CXLRequest* primaryReq) // Renamed parameter
 {
-    if (if_name == "cache_port") {
-        return cachePort;
-    } else if (if_name == "mem_port") {
-        return memPort;
-    } else if (if_name == "translation_port") {
-        return translationPort;
-    } else {
-        return SimObject::getPort(if_name, idx);
+    auto depIt = dependentReqs.find(primaryReq);
+    if (depIt == dependentReqs.end()) {
+        DPRINTF(CXLCard, "No dependent requests for primary addr 0x%lx (req %p)\n",
+               primaryReq->translatedAddr & ~(cacheLineSize - 1), primaryReq);
+        return;
+    }
+
+    // Get the list of dependent requests
+    auto& dependents = depIt->second;
+
+    DPRINTF(CXLCard, "Completing %u dependent requests for primary addr 0x%lx (req %p)\n",
+            dependents.size(), primaryReq->translatedAddr & ~(cacheLineSize - 1), primaryReq);
+
+    // --- Cache fill logic removed from here ---
+
+    // Complete all dependent requests: update stats and log, remove from outstandingReqs if needed
+    for (CXLRequest* depReq : dependents) {
+        // Mark as cache miss (since it waited for memory)
+        depReq->cacheHit = false;
+
+        // Complete the dependent request - stats/logging/removal handled inside
+        DPRINTF(CXLCard, "Completing dependent request %p (addr 0x%lx)\n", depReq, depReq->addr);
+        completeRequest(depReq, nullptr); // Pass nullptr as response packet
+    }
+
+    // Remove the entry from dependentReqs map after all dependents are processed
+    dependentReqs.erase(depIt);
+
+    // Check for simulation exit after processing dependents
+    // This check is also done in completeRequest, potentially redundant but safe
+    if (allRequestsCompleted()) {
+        DPRINTF(CXLCard, "All %d requests completed after dependent processing. Exiting simulation.\n", totalRequests);
+        exitSimLoop("All CXL requests completed", 0);
     }
 }
+
 
 bool
 CXLController::CXLRequestPort::recvTimingResp(PacketPtr pkt)
@@ -121,163 +153,216 @@ CXLController::CXLRequestPort::recvTimingResp(PacketPtr pkt)
     }
 
     if (isCache) {
-        // Get the request address
-        Addr addr = pkt->getAddr();
+        // Response from Cache
+        Addr addr = pkt->getAddr(); // Aligned address
 
-        // Check if this is a response to our WriteLineReq cache fill operation
-        // In gem5, WriteLineReq gets a normal WriteResp reply
+        // Handle cache fill response (WriteResp)
         if (pkt->isResponse() && pkt->cmd == MemCmd::WriteResp) {
-            DPRINTF(CXLCard, "Received cache fill response for addr 0x%lx, ignoring as original request already completed\n", addr);
-            // Since we've already completed the original request when we got the memory response,
-            // we just need to clean up this fill response packet
+            DPRINTF(CXLCard, "Received cache fill response for addr 0x%lx, ignoring.\n", addr);
             delete pkt;
             return true;
         }
 
-        // Find the corresponding request in our tracking map
-        auto it = controller->outstandingReqs.find(addr);
-        if (it == controller->outstandingReqs.end()) {
-            warn("Received response for unknown address: 0x%lx\n", addr);
-            delete pkt;
-            return true;
-        }
-
-        CXLRequest* req = it->second;
-
-        // Use isError() instead of isFail() to detect cache miss responses
-        // When a cache doesn't have a memory connection, it sets error flag on miss responses
-        bool hit = pkt->isResponse() && !pkt->isError();
-
-        DPRINTF(CXLCard, "Response from cache: %s, addr: 0x%lx, hit: %d, error: %d\n",
-                pkt->cmdString(), addr, hit, pkt->isError());
-
-        if (hit) {
-            // Cache hit for either read or write
-            DPRINTF(CXLCard, "Cache %s hit for address 0x%lx\n",
-                   req->isRead ? "read" : "write", addr);
-
-            // Mark request as a cache hit
-            req->cacheHit = true;
-
-            // Complete the request - either read or write hit
-            controller->completeRequest(pkt);
-        } else {
-            // Cache miss for either read or write
-            DPRINTF(CXLCard, "Cache %s miss for address 0x%lx\n",
-                   req->isRead ? "read" : "write", addr);
-
-            controller->processCacheMiss(pkt);
-        }
-    } else if (controller->translationPort.name() == name()) {
-        // Handle address translation response
-        Addr translationAddr = pkt->getAddr();
-
-        DPRINTF(CXLCard, "Received address translation response for addr 0x%lx\n",
-                translationAddr);
-
-        // Find the original block address from the translation address
-        Addr origBlockAddr = translationAddr - 0x40000000;
-
-        // Need to search through all outstanding requests to find the matching one
+        // Find the corresponding request(s) in our tracking map
+        auto range = controller->outstandingReqs.equal_range(addr);
         CXLRequest* req = nullptr;
-        for (auto& pair : controller->outstandingReqs) {
-            // Check if this request was waiting for translation and matches the block address
-            Addr reqBlockAddr = pair.second->addr & ~(controller->cacheLineSize - 1);
-            if (reqBlockAddr == origBlockAddr &&
-                pair.second->translationSent && !pair.second->translationDone) {
-                req = pair.second;
-                DPRINTF(CXLCard, "Found matching request with addr 0x%lx (block addr 0x%lx)\n",
-                       pair.second->addr, reqBlockAddr);
+
+        // Iterate through requests matching the address to find the one matching the packet
+        for (auto it = range.first; it != range.second; ++it) {
+            // Check if the packet pointer matches the one stored in the request
+            if (it->second->pkt == pkt) {
+                req = it->second;
                 break;
             }
         }
 
-        // If request not found or already completed (cache hit), just ignore the response
-        if (!req) {
-            DPRINTF(CXLCard, "Translation response for completed/unknown request, ignoring\n");
+        if (req == nullptr) {
+            // Fallback: If pkt pointer doesn't match (e.g., if cache modified it?),
+            // try finding *any* non-completed request for this address.
+            // This might be less accurate if multiple requests are truly concurrent.
+             for (auto it = range.first; it != range.second; ++it) {
+                 if (!it->second->completed) {
+                     req = it->second;
+                     DPRINTF(CXLCard, "Fallback: Found non-completed request %p for cache response addr 0x%lx\n", req, addr);
+                     break;
+                 }
+             }
+        }
+
+
+        if (req == nullptr) {
+            warn("Received cache response for unknown or already completed request address: 0x%lx\n", addr);
             delete pkt;
             return true;
         }
 
-        // Mark translation as complete
+        // Check if request was already completed (e.g., as dependent)
+        if (req->completed) {
+             DPRINTF(CXLCard, "Cache response for already completed request %p (addr 0x%lx), ignoring.\n", req, addr);
+             delete pkt;
+             return true;
+        }
+
+
+        bool hit = pkt->isResponse() && !pkt->isError();
+
+        DPRINTF(CXLCard, "Response from cache: %s, addr: 0x%lx, hit: %d, error: %d (Req: %p)\n",
+                pkt->cmdString(), addr, hit, pkt->isError(), req);
+
+        if (hit) {
+            DPRINTF(CXLCard, "Cache %s hit for address 0x%lx (Req: %p)\n",
+                   req->isRead ? "read" : "write", addr, req);
+            req->cacheHit = true;
+            // Pass the actual response packet `pkt`
+            controller->completeRequest(req, pkt);
+        } else {
+            DPRINTF(CXLCard, "Cache %s miss for address 0x%lx (Req: %p)\n",
+                   req->isRead ? "read" : "write", addr, req);
+            // Pass the miss packet `pkt` to be deleted inside processCacheMiss
+            controller->processCacheMiss(req, pkt);
+        }
+    } else if (controller->translationPort.name() == name()) {
+        // Handle address translation response
+        Addr translationAddr = pkt->getAddr();
+        DPRINTF(CXLCard, "Received address translation response for addr 0x%lx\n",
+                translationAddr);
+
+        Addr origBlockAddr = translationAddr - 0x40000000;
+
+        // Find the matching request(s)
+        auto range = controller->outstandingReqs.equal_range(origBlockAddr);
+        CXLRequest* req = nullptr;
+        for (auto it = range.first; it != range.second; ++it) {
+            if (it->second->translationSent && !it->second->translationDone) {
+                // Check if the translation packet matches
+                if (it->second->transPkt == pkt) {
+                    req = it->second;
+                    DPRINTF(CXLCard, "Found matching request %p with addr 0x%lx (block addr 0x%lx)\n",
+                           req, req->addr, origBlockAddr);
+                    break;
+                }
+            }
+        }
+         // Fallback if packet pointer doesn't match
+        if (!req) {
+            for (auto it = range.first; it != range.second; ++it) {
+                if (it->second->translationSent && !it->second->translationDone && !it->second->completed) {
+                    req = it->second;
+                    DPRINTF(CXLCard, "Fallback: Found matching untranslated request %p for block 0x%lx\n", req, origBlockAddr);
+                    break;
+                }
+            }
+        }
+
+
+        if (!req || req->completed) {
+            DPRINTF(CXLCard, "Translation response for completed/unknown request (block 0x%lx), ignoring\n", origBlockAddr);
+            delete pkt;
+            return true;
+        }
+
         req->translationDone = true;
-
-        // Apply the translation - use the same address for now
-        // In a real system, this would use actual translation data from the packet
-        req->translatedAddr = req->addr;
-
-        DPRINTF(CXLCard, "Address 0x%lx translated to 0x%lx\n", req->addr, req->translatedAddr);
+        req->translatedAddr = req->addr; // Simple translation for now
+        DPRINTF(CXLCard, "Address 0x%lx translated to 0x%lx (Req %p)\n", req->addr, req->translatedAddr, req);
 
         // If this was a cache miss waiting for translation, now send to memory
         if (!req->cacheHit && req->sentToCache) {
             controller->sendRequestToMemory(*req);
         }
 
-        // Clean up the packet
+        // Clean up the translation packet
         delete pkt;
-    } else {
-        // Response from memory (decompression engine)
-        Addr addr = pkt->getAddr();
+        req->transPkt = nullptr; // Clear pointer in request
+
+    } else { // Memory Port Path
+        Addr addr = pkt->getAddr(); // Aligned translated address
+        Addr lineAddr = addr & ~(controller->cacheLineSize - 1);
 
         DPRINTF(CXLCard, "Received response from decompression engine for addr 0x%lx\n", addr);
 
-        // Find the request with matching translated address instead of original address
-        CXLRequest* req = nullptr;
-        for (auto& pair : controller->outstandingReqs) {
-            if (pair.second->translationDone &&
-                (pair.second->translatedAddr & ~(controller->cacheLineSize - 1)) == addr) {
-                req = pair.second;
-                DPRINTF(CXLCard, "Found matching request with original addr 0x%lx, translated addr 0x%lx\n",
-                       pair.second->addr, pair.second->translatedAddr);
-                break;
-            }
-        }
-
-        if (!req) {
-            warn("Received memory response for unknown translated address: 0x%lx\n", addr);
+        // Find the primary request associated with this memory address
+        auto memReqIt = controller->outstandingMemReqs.find(lineAddr);
+        if (memReqIt == controller->outstandingMemReqs.end()) {
+            warn("Received memory response for address 0x%lx, but no matching outstanding memory request found.\n", lineAddr);
             delete pkt;
             return true;
         }
 
-        // For read misses, fill the cache with data from decompression engine
-        if (pkt->isRead() && req->isRead && !req->cacheHit) {
-            // Create a cache fill request with decompressed data
-            DPRINTF(CXLCard, "Creating cache fill request with data from decompression engine\n");
+        CXLRequest* primaryReq = memReqIt->second;
+        DPRINTF(CXLCard, "Found primary memory request (req %p, orig_addr 0x%lx) for translated addr 0x%lx\n",
+               primaryReq, primaryReq->addr, lineAddr);
 
-            // Use the original address for the cache fill (not the translated address)
-            Addr cacheLineAddr = req->addr & ~(controller->cacheLineSize - 1);
+        // Store the memory response packet in the primary request *before* erasing from outstandingMemReqs
+        if (!primaryReq->memPkt) {
+             primaryReq->memPkt = pkt;
+        } else if (primaryReq->memPkt != pkt) {
+             warn("Primary request %p already had a different memPkt %p assigned when receiving response %p",
+                  primaryReq, primaryReq->memPkt, pkt);
+             delete pkt;
+             return true;
+        }
 
-            // Create the request for cache fill
-            auto fillReq = std::make_shared<Request>(
-                cacheLineAddr, controller->cacheLineSize, 0, 0);
+        controller->outstandingMemReqs.erase(memReqIt);
 
-            // Create a WriteLineReq packet to fill the cache
+        // Check if the primary request was already completed
+        if (primaryReq->completed) {
+             DPRINTF(CXLCard, "Primary request %p already completed, ignoring memory response.\n", primaryReq);
+             delete primaryReq->memPkt;
+             primaryReq->memPkt = nullptr;
+             return true;
+        }
+
+        // --- Cache Fill Logic Moved Here ---
+        // If this was a read miss, send a cache fill request
+        if (primaryReq->isRead && !primaryReq->cacheHit) {
+            Addr cacheLineAddr = primaryReq->addr & ~(controller->cacheLineSize - 1);
+            auto fillReq = std::make_shared<Request>(cacheLineAddr, controller->cacheLineSize, 0, 0);
             PacketPtr fillPkt = new Packet(fillReq, MemCmd::WriteLineReq);
             fillPkt->allocate();
-            fillPkt->setData(pkt->getConstPtr<uint8_t>());
 
-            DPRINTF(CXLCard, "Sending cache fill request to addr 0x%lx with decompressed data\n",
-                    cacheLineAddr);
+            // Copy data from the memory response packet
+            if (primaryReq->memPkt && primaryReq->memPkt->hasData()) {
+                size_t copySize = std::min((size_t)primaryReq->memPkt->getSize(), (size_t)fillPkt->getSize());
+                std::memcpy(fillPkt->getPtr<uint8_t>(),
+                           primaryReq->memPkt->getConstPtr<uint8_t>(),
+                           copySize);
+                DPRINTF(CXLCard, "Copied %u bytes from memPkt to fillPkt for primary req %p\n", copySize, primaryReq);
+            } else {
+                 warn("Primary request memPkt (req %p) has no data or is null for cache fill in recvTimingResp", primaryReq);
+            }
 
             // Try to send the cache fill request
             bool success = controller->cachePort.sendTimingReq(fillPkt);
             if (!success) {
-                DPRINTF(CXLCard, "Cache fill request failed, adding to retry queue\n");
+                DPRINTF(CXLCard, "Cache fill request failed for primary req %p, adding to retry queue\n", primaryReq);
                 controller->cacheRetryQueue.push(fillPkt);
             } else {
-                DPRINTF(CXLCard, "Successfully sent cache fill request. Cache fill response will be ignored.\n");
+                DPRINTF(CXLCard, "Successfully sent cache fill request for primary req %p\n", primaryReq);
             }
         }
+        // --- End Cache Fill Logic ---
 
-        // Complete the original request
-        // Use the original address to find the request in outstandingReqs for completeRequest
-        Addr origAddrAligned = req->addr & ~(controller->cacheLineSize - 1);
-        // Temporarily change packet address to original address for completion
-        Addr savedAddr = pkt->getAddr();
-        pkt->setAddr(origAddrAligned);
-        controller->completeRequest(pkt);
-        // Restore original address in case the packet is used elsewhere
-        pkt->setAddr(savedAddr);
+
+        // Process any dependent requests that were waiting for this response
+        controller->completeDependentRequests(primaryReq);
+
+        // Now, complete the primary request itself
+        if (primaryReq->completed) {
+             DPRINTF(CXLCard, "Primary request %p completed during dependent processing, ignoring memory response for primary.\n", primaryReq);
+             delete primaryReq->memPkt;
+             primaryReq->memPkt = nullptr;
+             return true;
+        }
+
+        // Mark primary as cache miss (redundant if already false, but safe)
+        primaryReq->cacheHit = false;
+
+        // Complete the primary request
+        controller->completeRequest(primaryReq, nullptr);
+
+        // Clean up the original response packet
+        delete primaryReq->memPkt;
+        primaryReq->memPkt = nullptr;
     }
 
     return true;
@@ -331,79 +416,92 @@ CXLController::allRequestsCompleted() const
 }
 
 void
-CXLController::completeRequest(PacketPtr pkt)
+CXLController::completeRequest(CXLRequest* req, PacketPtr respPkt)
 {
-    Addr addr = pkt->getAddr();
-
-    // Find the corresponding request
-    auto it = outstandingReqs.find(addr);
-    if (it == outstandingReqs.end()) {
-        warn("Received response for unknown address: 0x%lx\n", addr);
-        // Don't delete req - it's a shared_ptr that manages its own memory
-        delete pkt;
+    // Check if this specific request instance has already been completed
+    if (req->completed) {
+        DPRINTF(CXLCard, "Request %p for addr 0x%lx already completed, skipping completeRequest.\n", req, req->addr);
+        // Clean up the optional response packet if provided
+        if (respPkt) delete respPkt;
         return;
     }
 
-    CXLRequest* req = it->second;
+    // Mark as completed
+    req->completed = true;
 
     // Calculate request latency in ticks and convert to nanoseconds
     Tick latency_ticks = curTick() - req->sendTick;
-    // Convert to nanoseconds (1 tick = 1 ps in gem5)
     double latency_ns = static_cast<double>(latency_ticks) / 1000.0;
 
-    // We now know definitively if it was a cache hit
+    // Determine hit/miss status (req->cacheHit should be set correctly by caller)
     bool isHit = req->cacheHit;
     bool isRead = req->isRead;
 
     // Record latency in the appropriate stats
     stats.meanAccessLatency = latency_ns;
-
-    // Increment the appropriate counter statistics
+    // Increment total requests count - Use stats::Scalar type
     stats.totalRequests++;
 
     if (isRead) {
         stats.readLatency = latency_ns;
         if (isHit) {
-            stats.hitLatency = latency_ns;
-            stats.readHitLatency = latency_ns;
+            stats.hitLatency += latency_ns;
+            stats.readHitLatency += latency_ns;
             stats.totalHits++;
             stats.readHits++;
         } else {
-            stats.missLatency = latency_ns;
-            stats.readMissLatency = latency_ns;
+            stats.missLatency += latency_ns;
+            stats.readMissLatency += latency_ns;
             stats.totalMisses++;
             stats.readMisses++;
         }
-    } else {
-        stats.writeLatency = latency_ns;
+    } else { // Write
+        stats.writeLatency += latency_ns;
         if (isHit) {
-            stats.hitLatency = latency_ns;
-            stats.writeHitLatency = latency_ns;
+            stats.hitLatency += latency_ns;
+            stats.writeHitLatency += latency_ns;
             stats.totalHits++;
             stats.writeHits++;
         } else {
-            stats.missLatency = latency_ns;
-            stats.writeMissLatency = latency_ns;
+            stats.missLatency += latency_ns;
+            stats.writeMissLatency += latency_ns;
             stats.totalMisses++;
             stats.writeMisses++;
         }
     }
 
-    // Print completion information
-    DPRINTF(CXLCard, "Completed CXL Request: %s Address: 0x%lx Time: %lu us Compression Ratio: %.2f Latency: %.2f ns (%s)\n",
+    // Print completion information with floating point time
+    DPRINTF(CXLCard, "Completed CXL Request: %s Address: 0x%lx Time: %.3f us Compression Ratio: %.2f Latency: %.2f ns (%s) (Req: %p)\n",
            req->isRead ? "Read" : "Write",
-           req->addr,
+           req->addr, // Use original address for logging
            req->time_us,
            req->comprRatio,
            latency_ns,
-           isHit ? "cache hit" : "cache miss");
+           isHit ? "cache hit" : "cache miss",
+           req);
 
-    // Clean up the packet
-    // Don't delete req - it's a shared_ptr that manages its own memory
-    delete pkt;
+    // Clean up the optional response packet passed for cache hits etc.
+    // The primary memory response packet (req->memPkt) is deleted by the caller (recvTimingResp memory path)
+    if (respPkt && respPkt != req->memPkt) {
+         delete respPkt;
+    }
 
-    // Remove from outstanding requests
-    outstandingReqs.erase(it);
+    // Remove this specific request instance from outstanding requests map
+    Addr lineAddr = req->addr & ~(cacheLineSize - 1);
+    auto range = outstandingReqs.equal_range(lineAddr);
+    bool removed = false;
+    for (auto it = range.first; it != range.second; ++it) {
+        if (it->second == req) {
+            outstandingReqs.erase(it);
+            removed = true;
+            DPRINTF(CXLCard, "Removed request %p from outstandingReqs for addr 0x%lx\n", req, lineAddr);
+            break;
+        }
+    }
+    if (!removed) {
+         warn("Could not find request %p in outstandingReqs to remove for addr 0x%lx", req, lineAddr);
+    }
+
 
     // Increment completed requests counter
     completedRequests++;
@@ -416,46 +514,44 @@ CXLController::completeRequest(PacketPtr pkt)
 }
 
 void
-CXLController::processCacheMiss(PacketPtr pkt)
+CXLController::processCacheMiss(CXLRequest* req, PacketPtr missPkt)
 {
-    Addr addr = pkt->getAddr();
-
-    // Find the corresponding request
-    auto it = outstandingReqs.find(addr);
-    if (it == outstandingReqs.end()) {
-        warn("Received cache miss for unknown address: 0x%lx\n", addr);
-        delete pkt;
-        return;
-    }
-
-    CXLRequest* req = it->second;
-
-    // Mark as cache miss
+    // Mark as cache miss (should already be done, but ensure)
     req->cacheHit = false;
 
-    // Print both the block address and the original request address for clarity
-    DPRINTF(CXLCard, "Cache miss for block address 0x%lx (request addr 0x%lx), checking translation\n",
-            addr, req->addr);
+    Addr blockAddr = req->addr & ~(cacheLineSize - 1);
+    DPRINTF(CXLCard, "Cache miss for block address 0x%lx (request addr 0x%lx, Req: %p), checking translation\n",
+            blockAddr, req->addr, req);
 
-    // Clean up the cache packet
-    delete pkt;
+    // Clean up the cache miss packet
+    delete missPkt;
+    // Ensure the request's packet pointer is cleared if it pointed to missPkt
+    if (req->pkt == missPkt) {
+        req->pkt = nullptr;
+    }
+
 
     // Only send read misses to memory (write misses are ignored with no-write-allocate)
     if (req->isRead) {
         // Check if translation is already done
         if (req->translationDone) {
-            // Translation already complete, proceed with memory access
-            DPRINTF(CXLCard, "Translation already complete, proceeding with memory request\n");
+            DPRINTF(CXLCard, "Translation already complete for Req %p, proceeding with memory request\n", req);
             sendRequestToMemory(*req);
         } else {
-            // Translation not done yet, will send to memory when translation completes
-            DPRINTF(CXLCard, "Waiting for address translation to complete\n");
-            // The translation response handler will call sendRequestToMemory when translation completes
+            DPRINTF(CXLCard, "Req %p waiting for address translation to complete\n", req);
+            // The translation response handler will call sendRequestToMemory
         }
     } else {
-        // For write misses with no-write-allocate, we should have already completed the request
-        // This code path should not be reached for write misses
-        warn("Unexpected write miss processing in processCacheMiss for addr 0x%lx\n", addr);
+        // For write misses with no-write-allocate, we should have already completed the request?
+        // Or should we send to memory? Current logic assumes writes don't go to memory on miss.
+        // If writes *should* go to memory on miss, add similar logic as for reads.
+        // For now, assume write misses are completed immediately (no-write-allocate).
+        // If this path is reached for a write, it implies an issue.
+        warn("Unexpected write miss processing in processCacheMiss for Req %p, addr 0x%lx\n", req, req->addr);
+        // Complete the request immediately as a miss if it wasn't already
+        if (!req->completed) {
+             completeRequest(req, nullptr);
+        }
     }
 }
 
@@ -489,27 +585,59 @@ CXLController::sendRequestToCache(CXLRequest &req)
     // Record when the request is sent
     req.sendTick = curTick();
 
-    // Add to outstanding requests map
-    int index = &req - &requests[0];
-    if (index >= 0 && index < static_cast<int>(requests.size())) {
-        CXLRequest* trackedReq = &requests[index];
-        outstandingReqs[lineAddr] = trackedReq;
-    } else {
-        // Create a temporary copy in the requests vector
-        requests.push_back(req);
-        outstandingReqs[lineAddr] = &requests.back();
+    // Add to outstanding requests map using insert for multimap
+    // Find the original request pointer from the requests vector
+    CXLRequest* trackedReq = nullptr;
+    // This linear search is inefficient but necessary if req is a copy
+    for (size_t i = 0; i < requests.size(); ++i) {
+        if (requests[i].addr == req.addr && requests[i].time_us == req.time_us && !requests[i].completed) {
+             // Basic matching, might need better ID if traces have identical reqs
+             if (!trackedReq) trackedReq = &requests[i];
+             // If multiple identical requests exist, this picks the first non-completed one
+        }
     }
 
-    // Print request information
-    DPRINTF(CXLCard, "Sending CXL Request to Cache: %s Address: 0x%lx Time: %lu us Compression Ratio: %.2f\n",
+    if (!trackedReq) {
+         // If not found in original vector (e.g., if req was dynamically created?),
+         // we might need to store it differently. For now, assume it's from the vector.
+         warn("Could not find original request in vector for request to addr 0x%lx time %.3f", req.addr, req.time_us);
+         // Fallback: use the address of the passed-in req, but this might be temporary
+         trackedReq = &req;
+         // This could lead to issues if 'req' is on the stack.
+         // A better approach might be needed if requests aren't always from the initial vector.
+    }
+
+
+    if (trackedReq) {
+        outstandingReqs.insert({lineAddr, trackedReq});
+        DPRINTF(CXLCard, "Added request %p to outstandingReqs for addr 0x%lx\n", trackedReq, lineAddr);
+    } else {
+         // Handle error: couldn't track the request
+         warn("Failed to track request for cache send: Addr 0x%lx", req.addr);
+         delete pkt; // Clean up packet
+         req.pkt = nullptr;
+         return false; // Indicate failure
+    }
+
+
+    // Print request information with floating point time
+    DPRINTF(CXLCard, "Sending CXL Request to Cache: %s Address: 0x%lx Time: %.3f us Compression Ratio: %.2f (Req: %p)\n",
            req.isRead ? "Read" : "Write",
            req.addr,
            req.time_us,
-           req.comprRatio);
+           req.comprRatio,
+           trackedReq); // Log the tracked pointer
 
     // Send the packet to cache
     bool success = cachePort.sendTimingReq(pkt);
-    return success;
+    if (!success) {
+        // If sending fails immediately, add to retry queue
+        DPRINTF(CXLCard, "Cache port busy, adding pkt %p to retry queue for Req %p\n", pkt, trackedReq);
+        cacheRetryQueue.push(pkt);
+        // Return true because we accepted the request (it's queued)
+        return true;
+    }
+    return success; // Should be true if not added to retry queue
 }
 
 bool
@@ -518,8 +646,36 @@ CXLController::sendRequestToMemory(CXLRequest &req)
     // Always use the translated address
     assert(req.translationDone && "Translation must be complete before sending to memory");
 
+    // Calculate the aligned address for memory access
     Addr lineAddr = req.translatedAddr & ~(cacheLineSize - 1);
-    DPRINTF(CXLCard, "Using translated address 0x%lx for memory request\n", lineAddr);
+    DPRINTF(CXLCard, "Using translated address 0x%lx for memory request (Req %p)\n", lineAddr, &req);
+
+    // Check if there's already a pending request for this address
+    auto existingIt = outstandingMemReqs.find(lineAddr);
+    if (existingIt != outstandingMemReqs.end()) {
+        // Found an existing request to the same address
+        CXLRequest* existingReq = existingIt->second;
+
+        // Only merge read requests (not writes)
+        if (req.isRead) {
+            DPRINTF(CXLCard, "Found existing memory request for addr 0x%lx (Primary Req %p), merging current Req %p\n",
+                   lineAddr, existingReq, &req);
+
+            // Mark this request as waiting for the existing request
+            req.isWaitingForMemory = true;
+            req.waitingForRequest = existingReq;
+
+            // Add this request to the dependent requests list
+            dependentReqs[existingReq].push_back(&req);
+
+            DPRINTF(CXLCard, "Added dependent request %p to primary request %p - now %u dependent requests\n",
+                  &req, existingReq, dependentReqs[existingReq].size());
+
+            // Don't need to send another request
+            return true;
+        }
+         // else: Don't merge writes, proceed to send a new request
+    }
 
     // Calculate the compressed size based on compression ratio
     // comprRatio is in percentage, e.g. 50.0 means 50% of original size
@@ -546,22 +702,43 @@ CXLController::sendRequestToMemory(CXLRequest &req)
 
     // Include compression ratio in the packet data for decompression engine
     // Store in first 8 bytes of the packet data (simple approach)
-    if (pkt->hasData()) {
+    if (pkt->hasData() && pkt->getSize() >= sizeof(double)) {
         *reinterpret_cast<double*>(pkt->getPtr<uint8_t>()) = req.comprRatio;
+    } else if (pkt->hasData()) {
+         warn("Packet data size (%u) too small to store compression ratio (needs %lu)", pkt->getSize(), sizeof(double));
     }
 
+
     // Store the memory packet in the request
+    // Ensure we don't overwrite an existing packet pointer if this function is called multiple times for the same request (shouldn't happen)
+    if (req.memPkt) {
+        warn("Req %p already has a memPkt %p assigned when creating new memPkt %p", &req, req.memPkt, pkt);
+        delete req.memPkt; // Delete old packet to prevent leak
+    }
     req.memPkt = pkt;
 
+
     // Print request information with addresses and compression ratio
-    DPRINTF(CXLCard, "Sending CXL Request to Memory: %s Address: 0x%lx (orig: 0x%lx) Size: %u bytes, Ratio: %.2f%%\n",
+    DPRINTF(CXLCard, "Sending CXL Request to Memory: %s Address: 0x%lx (orig: 0x%lx) Size: %u bytes, Ratio: %.2f%% (Req: %p)\n",
            req.isRead ? "Read" : "Write",
-           lineAddr, req.addr, compressedSize, req.comprRatio);
+           lineAddr, req.addr, compressedSize, req.comprRatio, &req);
+
+    // Register this as an outstanding memory request
+    // Ensure we use the correct pointer to the request object
+    outstandingMemReqs[lineAddr] = &req;
 
     // Send the packet directly to memory
     bool success = memPort.sendTimingReq(pkt);
-    return success;
+     if (!success) {
+        // If sending fails immediately, add to retry queue
+        DPRINTF(CXLCard, "Memory port busy, adding memPkt %p to retry queue for Req %p\n", pkt, &req);
+        memRetryQueue.push(pkt);
+        // Return true because we accepted the request (it's queued)
+        return true;
+    }
+    return success; // Should be true if not added to retry queue
 }
+
 
 bool
 CXLController::sendAddressTranslationRequest(CXLRequest &req)
@@ -576,8 +753,8 @@ CXLController::sendAddressTranslationRequest(CXLRequest &req)
     // Calculate a lookup address in the translation table based on the block address
     Addr translationAddr = 0x40000000 + blockAddr;
 
-    DPRINTF(CXLCard, "Translation lookup: original addr 0x%lx (block addr 0x%lx) → table lookup addr 0x%lx\n",
-            origAddr, blockAddr, translationAddr);
+    DPRINTF(CXLCard, "Translation lookup: original addr 0x%lx (block addr 0x%lx) → table lookup addr 0x%lx (Req: %p)\n",
+            origAddr, blockAddr, translationAddr, &req);
 
     // Create request and packet - explicitly use 8 bytes (64 bits) for translation lookup
     auto transReq = std::make_shared<Request>(translationAddr, 8, 0, 0);
@@ -585,52 +762,58 @@ CXLController::sendAddressTranslationRequest(CXLRequest &req)
     pkt->allocate();
 
     // Store in request
+    // Ensure we don't overwrite an existing packet pointer
+    if (req.transPkt) {
+        warn("Req %p already has a transPkt %p assigned when creating new transPkt %p", &req, req.transPkt, pkt);
+        delete req.transPkt; // Delete old packet
+    }
     req.transPkt = pkt;
     req.translationSent = true;
+
 
     // Send request
     bool success = translationPort.sendTimingReq(pkt);
     if (!success) {
-        DPRINTF(CXLCard, "Translation request failed, adding to retry queue\n");
+        DPRINTF(CXLCard, "Translation request failed for Req %p, adding transPkt %p to retry queue\n", &req, pkt);
         translationRetryQueue.push(pkt);
+        // Return true because we accepted the request (it's queued)
+        return true;
     }
 
-    return success;
+    return success; // Should be true if not added to retry queue
 }
 
 void
 CXLController::processRequest(const CXLRequest &reqEvent)
 {
-    // Find the request in our vector to get a properly tracked reference
-    // that won't go out of scope when this function returns
+    // Find the request in our vector to get a stable pointer
     CXLRequest* trackedReq = nullptr;
     for (size_t i = 0; i < requests.size(); i++) {
+        // Match based on address and time, and ensure it's not already completed
         if (requests[i].addr == reqEvent.addr &&
-            requests[i].time_us == reqEvent.time_us) {
+            requests[i].time_us == reqEvent.time_us &&
+            !requests[i].completed)
+        {
+            // If multiple identical requests exist, this picks the first non-completed one
             trackedReq = &requests[i];
             break;
         }
     }
 
     if (trackedReq == nullptr) {
-        warn("Could not find matching request in request vector, skipping");
+        warn("Could not find matching non-completed request in request vector for addr 0x%lx time %.3f, skipping",
+             reqEvent.addr, reqEvent.time_us);
         return;
     }
+
+    DPRINTF(CXLCard, "Processing request %p: Addr 0x%lx Time %.3f\n", trackedReq, trackedReq->addr, trackedReq->time_us);
 
     // Send address translation request in parallel with cache request
     sendAddressTranslationRequest(*trackedReq);
 
     // First try the cache
-    if (!sendRequestToCache(*trackedReq)) {
-        // If sending fails, add to retry queue
-        if (trackedReq->pkt) {
-            DPRINTF(CXLCard, "Cache request enqueued for retry: %s Address: 0x%lx\n",
-                   trackedReq->isRead ? "Read" : "Write", trackedReq->addr);
-            cacheRetryQueue.push(trackedReq->pkt);
-        } else {
-            warn("Failed to send request but packet was not created!");
-        }
-    }
+    sendRequestToCache(*trackedReq);
+    // sendRequestToCache now handles adding to retry queue internally if needed
 }
 
 void
@@ -656,7 +839,7 @@ CXLController::loadTrace()
         std::istringstream iss(line);
         char rw;
         Addr addr;
-        uint64_t time_us;
+        double time_us;  // Changed from uint64_t to double
         double comprRatio;
 
         if (!(iss >> rw >> std::hex >> addr >> std::dec >> time_us >> comprRatio)) {
@@ -677,7 +860,7 @@ CXLController::loadTrace()
     totalRequests = requests.size();
 
     // Fix the format specifier for size_t
-    DPRINTF(CXLCard, "Loaded %zu CXL requests from trace file: %s\n",
+    DPRINTF(CXLCard, "Loaded %u CXL requests from trace file: %s\n",
            requests.size(), traceFilePath);
 }
 
@@ -696,6 +879,20 @@ CXLController::scheduleEvents()
 
         schedule(event, tick_time);
         DPRINTF(CXLCard, "Scheduled CXL request event at %lu ticks\n", tick_time);
+    }
+}
+
+Port &
+CXLController::getPort(const std::string &if_name, PortID idx)
+{
+    if (if_name == "cache_port") {
+        return cachePort;
+    } else if (if_name == "mem_port") {
+        return memPort;
+    } else if (if_name == "translation_port") {
+        return translationPort;
+    } else {
+        return SimObject::getPort(if_name, idx);
     }
 }
 

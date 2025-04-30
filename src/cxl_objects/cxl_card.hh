@@ -27,7 +27,7 @@ struct CXLRequest
 {
     bool isRead;        // true for Read, false for Write
     Addr addr;          // Memory address
-    uint64_t time_us;   // Time in microseconds
+    double time_us;     // Time in microseconds (floating point for precise timing)
     double comprRatio;  // Compression ratio
 
     // Packet pointer for pending requests
@@ -44,6 +44,12 @@ struct CXLRequest
     bool translationSent = false;  // Whether translation request was sent
     bool translationDone = false;  // Whether translation is complete
     Addr translatedAddr = 0;       // Translated address from translation
+
+    // Dependency tracking
+    bool isWaitingForMemory = false;   // Whether this request is waiting for another memory request
+    CXLRequest* waitingForRequest = nullptr;  // The request this one is waiting for
+
+    bool completed = false; // Ensure this flag exists
 };
 
 // Event class for CXL requests
@@ -109,8 +115,14 @@ class CXLController : public SimObject
     std::queue<PacketPtr> memRetryQueue;
     std::queue<PacketPtr> translationRetryQueue;
 
-    // Map to track outstanding requests
-    std::unordered_map<Addr, CXLRequest*> outstandingReqs;
+    // Map to track outstanding requests (allows multiple requests per address)
+    std::unordered_multimap<Addr, CXLRequest*> outstandingReqs;
+
+    // Map to track outstanding memory requests by aligned address
+    std::unordered_map<Addr, CXLRequest*> outstandingMemReqs;
+
+    // Map to track requests dependent on another request (key: primary request ptr)
+    std::unordered_map<CXLRequest*, std::vector<CXLRequest*>> dependentReqs;
 
     // Counter for tracking sent and completed requests
     int totalRequests;
@@ -170,6 +182,9 @@ class CXLController : public SimObject
     // Check if all requests have been completed
     bool allRequestsCompleted() const;
 
+    // Complete dependent requests waiting for the given request
+    void completeDependentRequests(CXLRequest* req);
+
     // Helper class to track original request when sending WriteLineReq
     class CacheCallbackState : public Packet::SenderState
     {
@@ -187,13 +202,15 @@ class CXLController : public SimObject
     void startup() override;
 
     // Called when a request is complete
-    void completeRequest(PacketPtr pkt);
+    // Accepts the request pointer and an optional response packet (e.g., for cache hits)
+    void completeRequest(CXLRequest* req, PacketPtr respPkt = nullptr);
 
     // Process a request (called by the event)
     void processRequest(const CXLRequest &req);
 
     // Process a cache miss (send to memory directly)
-    void processCacheMiss(PacketPtr pkt);
+    // Accepts the request pointer and the cache miss packet
+    void processCacheMiss(CXLRequest* req, PacketPtr missPkt);
 
     // Try to resend packets that failed earlier (to cache or memory)
     void trySendRetries(bool toCache);
