@@ -14,6 +14,12 @@ class CXLController(SimObject):
         "Path to the trace file",
     )
 
+    # Parameter for the output log file path
+    output_file = Param.String(
+        "/home/hnpark2/traceCache/gem5/src/cxl_objects/results/cxl_latency_log.txt",
+        "Path to the output latency log file",
+    )
+
     # Port to connect to the cache
     cache_port = RequestPort("Port to the cache")
 

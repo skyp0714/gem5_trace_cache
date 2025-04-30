@@ -18,6 +18,12 @@ parser.add_argument(
     help="Path to the trace file",
 )
 parser.add_argument(
+    "--output-file",
+    type=str,
+    default="/home/hnpark2/traceCache/gem5/src/cxl_objects/results/cxl_latency_log.txt",
+    help="Path to the output latency log file",
+)
+parser.add_argument(
     "--debug-flags",
     type=str,
     default="",
@@ -123,9 +129,11 @@ system.l1cache = Cache(
 # Set cache line size to match compression block size
 system.cache_line_size = args.compression_block_size
 
-# Create the CXL controller with updated cache line size
+# Create the CXL controller with updated cache line size and output file
 system.cxl_controller = CXLController(
-    trace_file=args.trace_file, cache_line_size=args.compression_block_size
+    trace_file=args.trace_file,
+    output_file=args.output_file,  # Pass the output file path
+    cache_line_size=args.compression_block_size,
 )
 
 # Connect the CXL controller to cache
@@ -159,6 +167,9 @@ m5.instantiate()
 # Print the simulation configuration
 print("Beginning CXL trace replay simulation")
 print(f"Using trace file: {args.trace_file}")
+print(
+    f"Logging latency details to: {args.output_file}"
+)  # Log output file path
 print(
     f"L1 Cache: {args.l1_size}, {args.l1_assoc}-way, {args.compression_block_size}B lines"
 )

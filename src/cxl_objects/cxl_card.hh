@@ -6,6 +6,7 @@
 #include <vector>
 #include <queue>
 #include <unordered_map>
+#include <iostream> // Include for std::ofstream
 
 #include "params/CXLController.hh"
 #include "sim/sim_object.hh"
@@ -78,6 +79,12 @@ class CXLController : public SimObject
     // File path for trace
     std::string traceFilePath;
 
+    // Output file path for logging
+    std::string outputFilePath;
+
+    // Output file stream
+    std::ofstream outputFile;
+
     // Cache line size
     const unsigned cacheLineSize;
 
@@ -125,40 +132,30 @@ class CXLController : public SimObject
     std::unordered_map<CXLRequest*, std::vector<CXLRequest*>> dependentReqs;
 
     // Counter for tracking sent and completed requests
-    int totalRequests;
-    int completedRequests;
+    int totalRequests; // From trace file loading
+    int completedRequests; // Incremented on completion
 
-    // Statistics
+    // Variables for calculating summary statistics manually
+    double totalLatencySum = 0.0;
+    double hitLatencySum = 0.0;
+    double missLatencySum = 0.0;
+    uint64_t hitCount = 0; // Use uint64_t for potentially large counts
+    uint64_t missCount = 0;
+
+    // Statistics (Counters only)
     struct CXLStats : public statistics::Group
     {
         CXLStats(statistics::Group *parent);
 
-        // Mean access latency for all requests
-        statistics::Average meanAccessLatency;
-
-        // Separate stats for read and write operations
-        statistics::Average readLatency;
-        statistics::Average writeLatency;
-
-        // Separate stats for hits and misses
-        statistics::Average hitLatency;
-        statistics::Average missLatency;
-
-        // Separate stats for reads and writes with hits and misses
-        statistics::Average readHitLatency;
-        statistics::Average readMissLatency;
-        statistics::Average writeHitLatency;
-        statistics::Average writeMissLatency;
-
         // Count statistics for hits and misses
-        statistics::Scalar totalRequests;
+        statistics::Scalar totalRequests; // This will track completed requests
         statistics::Scalar totalHits;
         statistics::Scalar totalMisses;
         statistics::Scalar readHits;
         statistics::Scalar readMisses;
         statistics::Scalar writeHits;
         statistics::Scalar writeMisses;
-        statistics::Formula hitRate;
+        // Removed hitRate formula as it depended on removed stats
     } stats;
 
     // Load the trace file
@@ -214,6 +211,9 @@ class CXLController : public SimObject
 
     // Try to resend packets that failed earlier (to cache or memory)
     void trySendRetries(bool toCache);
+
+    // Dump final statistics to the output file
+    void dumpStats(); // Add this function declaration
 
     Port &getPort(const std::string &if_name,
                   PortID idx = InvalidPortID) override;

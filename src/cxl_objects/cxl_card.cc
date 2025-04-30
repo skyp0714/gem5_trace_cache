@@ -3,40 +3,32 @@
 #include <fstream>
 #include <string>
 #include <sstream>
+#include <iomanip> // Include for std::setw, std::left, std::fixed, std::setprecision
 
 #include "base/logging.hh"
 #include "sim/core.hh"
+// #include "sim/sim_clock.hh"     // Include for SimClock::Frequency - Reverted
+#include "sim/stat_control.hh"
 #include "debug/CXLCard.hh"
-#include "sim/sim_exit.hh"
+#include "sim/sim_exit.hh" // Include for registerExitCallback
 #include "mem/packet_access.hh"
 
 namespace gem5
 {
 
-// Define the stats group constructor
+// Define the stats group constructor (Counters only)
 CXLController::CXLStats::CXLStats(statistics::Group *parent)
     : statistics::Group(parent),
-      ADD_STAT(meanAccessLatency, "Mean access latency in nanoseconds"),
-      ADD_STAT(readLatency, "Mean read access latency in nanoseconds"),
-      ADD_STAT(writeLatency, "Mean write access latency in nanoseconds"),
-      ADD_STAT(hitLatency, "Mean access latency for cache hits in nanoseconds"),
-      ADD_STAT(missLatency, "Mean access latency for cache misses in nanoseconds"),
-      ADD_STAT(readHitLatency, "Mean access latency for read hits in nanoseconds"),
-      ADD_STAT(readMissLatency, "Mean access latency for read misses in nanoseconds"),
-      ADD_STAT(writeHitLatency, "Mean access latency for write hits in nanoseconds"),
-      ADD_STAT(writeMissLatency, "Mean access latency for write misses in nanoseconds"),
-      ADD_STAT(totalRequests, "Total number of requests"),
+      ADD_STAT(totalRequests, "Total number of completed requests"),
       ADD_STAT(totalHits, "Total number of cache hits"),
       ADD_STAT(totalMisses, "Total number of cache misses"),
       ADD_STAT(readHits, "Number of read hits"),
       ADD_STAT(readMisses, "Number of read misses"),
       ADD_STAT(writeHits, "Number of write hits"),
-      ADD_STAT(writeMisses, "Number of write misses"),
-      ADD_STAT(hitRate, "Cache hit rate")
+      ADD_STAT(writeMisses, "Number of write misses")
+      // Removed hitRate formula
 {
-    hitRate.name("hitRate");
-    hitRate.desc("Cache hit rate (hits/total)");
-    hitRate = totalHits / totalRequests;
+    // No formulas or latency averages to initialize here
 }
 
 void
@@ -49,19 +41,50 @@ CXLRequestEvent::process()
 CXLController::CXLController(const CXLControllerParams &p)
     : SimObject(p),
       traceFilePath(p.trace_file),
+      outputFilePath(p.output_file), // Initialize output file path
       cacheLineSize(p.cache_line_size),
       cachePort(name() + ".cache_port", this, true),
       memPort(name() + ".mem_port", this, false),
       translationPort(name() + ".translation_port", this, false),
-      totalRequests(0),
-      completedRequests(0),
-      stats(this)  // Fix initialization order to match declaration order
+      totalRequests(0), // This is total from trace file
+      completedRequests(0), // This counts completed requests
+      stats(this)
 {
+    // Open the output file
+    outputFile.open(outputFilePath);
+    if (!outputFile.is_open()) {
+        fatal("Could not open CXL output log file: %s", outputFilePath);
+    }
+
+    // Write the header to the output file with fixed widths
+    outputFile << std::left << std::setw(18) << "Address"
+               << std::setw(22) << "CompressionRatio(%)"
+               << std::setw(15) << "Latency(ns)"
+               << std::setw(8) << "IsHit" << std::endl;
+    outputFile << std::string(18 + 22 + 15 + 8, '-') << std::endl; // Separator line
+
+    // Initialize summary stats (already done via member initialization)
+    totalLatencySum = 0.0;
+    hitLatencySum = 0.0;
+    missLatencySum = 0.0;
+    hitCount = 0;
+    missCount = 0;
+
+    // Register dumpStats to be called when simulation exits
+    registerExitCallback([this](){ dumpStats(); });
+    DPRINTF(CXLCard, "Registered dumpStats exit callback.\n");
 }
 
 
 CXLController::~CXLController()
 {
+    // Summary writing moved to dumpStats() called via exit callback
+
+    // Close the file if it's still open
+    if (outputFile.is_open()) {
+        outputFile.close();
+    }
+
     // Clean up any packets in the retry queues
     while (!cacheRetryQueue.empty()) {
         PacketPtr pkt = cacheRetryQueue.front();
@@ -102,6 +125,37 @@ CXLController::~CXLController()
     outstandingMemReqs.clear();
     outstandingReqs.clear();
 }
+
+void
+CXLController::dumpStats()
+{
+    DPRINTF(CXLCard, "dumpStats() called.\n");
+    // Calculate average latencies
+    double avgTotalLatency = (completedRequests > 0) ? (totalLatencySum / completedRequests) : 0.0;
+    double avgHitLatency = (hitCount > 0) ? (hitLatencySum / hitCount) : 0.0;
+    double avgMissLatency = (missCount > 0) ? (missLatencySum / missCount) : 0.0;
+
+    // Write summary statistics to the output file with fixed widths
+    if (outputFile.is_open()) {
+        outputFile << "\n" << std::string(18 + 22 + 15 + 8, '-') << std::endl;
+        outputFile << "--- Summary ---" << std::endl;
+        outputFile << std::fixed << std::setprecision(2); // Set precision for output
+
+        outputFile << std::left << std::setw(25) << "Average Latency:"
+                   << std::setw(15) << avgTotalLatency << " ns" << std::endl;
+        outputFile << std::left << std::setw(25) << "Average Hit Latency:"
+                   << std::setw(15) << avgHitLatency << " ns (" << hitCount << " hits)" << std::endl;
+        outputFile << std::left << std::setw(25) << "Average Miss Latency:"
+                   << std::setw(15) << avgMissLatency << " ns (" << missCount << " misses)" << std::endl;
+
+        // Ensure data is flushed to the file
+        outputFile.flush();
+        DPRINTF(CXLCard, "Summary statistics written to %s.\n", outputFilePath);
+    } else {
+        warn("Output file stream was not open when dumpStats() was called.");
+    }
+}
+
 
 void
 CXLController::completeDependentRequests(CXLRequest* primaryReq) // Renamed parameter
@@ -429,7 +483,7 @@ CXLController::completeRequest(CXLRequest* req, PacketPtr respPkt)
     // Mark as completed
     req->completed = true;
 
-    // Calculate request latency in ticks and convert to nanoseconds
+    // Calculate request latency in ticks
     Tick latency_ticks = curTick() - req->sendTick;
     double latency_ns = static_cast<double>(latency_ticks) / 1000.0;
 
@@ -437,46 +491,60 @@ CXLController::completeRequest(CXLRequest* req, PacketPtr respPkt)
     bool isHit = req->cacheHit;
     bool isRead = req->isRead;
 
-    // Record latency in the appropriate stats
-    stats.meanAccessLatency = latency_ns;
-    // Increment total requests count - Use stats::Scalar type
-    stats.totalRequests++;
+    // --- Logging to File ---
+    if (outputFile.is_open()) {
+        // Use manipulators for fixed-width output
+        outputFile << std::left << "0x" << std::hex << std::setw(16) << req->addr << std::dec // Address (18 width total)
+                   << std::fixed << std::setprecision(2) << std::setw(22) << req->comprRatio // Compression Ratio
+                   << std::setw(15) << latency_ns // Latency
+                   << std::setw(8) << (isHit ? "1" : "0") // IsHit
+                   << std::endl;
+    }
+
+    // --- Update Summary Statistics ---
+    totalLatencySum += latency_ns;
+    if (isHit) {
+        hitLatencySum += latency_ns;
+        hitCount++;
+    } else {
+        missLatencySum += latency_ns;
+        missCount++;
+    }
+
+    // --- Update Statistics Counters ---
+    stats.totalRequests++; // Increment completed requests counter stat
 
     if (isRead) {
-        stats.readLatency = latency_ns;
+        // Removed readLatency stat update
         if (isHit) {
-            stats.hitLatency += latency_ns;
-            stats.readHitLatency += latency_ns;
+            // Removed hitLatency and readHitLatency stat updates
             stats.totalHits++;
             stats.readHits++;
         } else {
-            stats.missLatency += latency_ns;
-            stats.readMissLatency += latency_ns;
+            // Removed missLatency and readMissLatency stat updates
             stats.totalMisses++;
             stats.readMisses++;
         }
     } else { // Write
-        stats.writeLatency += latency_ns;
+        // Removed writeLatency stat update
         if (isHit) {
-            stats.hitLatency += latency_ns;
-            stats.writeHitLatency += latency_ns;
+            // Removed hitLatency and writeHitLatency stat updates
             stats.totalHits++;
             stats.writeHits++;
         } else {
-            stats.missLatency += latency_ns;
-            stats.writeMissLatency += latency_ns;
+            // Removed missLatency and writeMissLatency stat updates
             stats.totalMisses++;
             stats.writeMisses++;
         }
     }
 
-    // Print completion information with floating point time
+    // Print completion information with floating point time (optional, kept for debug)
     DPRINTF(CXLCard, "Completed CXL Request: %s Address: 0x%lx Time: %.3f us Compression Ratio: %.2f Latency: %.2f ns (%s) (Req: %p)\n",
            req->isRead ? "Read" : "Write",
            req->addr, // Use original address for logging
            req->time_us,
            req->comprRatio,
-           latency_ns,
+           latency_ns, // Log the same value being added to stats
            isHit ? "cache hit" : "cache miss",
            req);
 
@@ -503,12 +571,14 @@ CXLController::completeRequest(CXLRequest* req, PacketPtr respPkt)
     }
 
 
-    // Increment completed requests counter
+    // Increment completed requests counter (internal tracking)
     completedRequests++;
 
     // If all requests are completed, exit the simulation
-    if (allRequestsCompleted()) {
+    // Compare completedRequests with totalRequests loaded from trace
+    if (completedRequests == totalRequests && totalRequests > 0) {
         DPRINTF(CXLCard, "All %d requests completed. Exiting simulation.\n", totalRequests);
+        // Exit simulation normally, which will trigger the exit callback
         exitSimLoop("All CXL requests completed", 0);
     }
 }
