@@ -16,19 +16,31 @@
 namespace gem5
 {
 
-// Define the stats group constructor (Counters only)
-CXLController::CXLStats::CXLStats(statistics::Group *parent)
-    : statistics::Group(parent),
-      ADD_STAT(totalRequests, "Total number of completed requests"),
-      ADD_STAT(totalHits, "Total number of cache hits"),
-      ADD_STAT(totalMisses, "Total number of cache misses"),
-      ADD_STAT(readHits, "Number of read hits"),
-      ADD_STAT(readMisses, "Number of read misses"),
-      ADD_STAT(writeHits, "Number of write hits"),
-      ADD_STAT(writeMisses, "Number of write misses")
-      // Removed hitRate formula
+// Forward declaration
+class TranslationEvent;
+
+// Event to schedule translation requests
+class TranslationEvent : public Event
 {
-    // No formulas or latency averages to initialize here
+  private:
+    CXLController *controller;
+    const std::string _name;
+    friend class CXLController;  // Make CXLController a friend
+
+  public:
+    TranslationEvent(CXLController *ctrl, const std::string &name)
+        : controller(ctrl), _name(name) {}
+
+    const std::string name() const override { return _name; }
+
+    void process() override;  // Don't include implementation here
+};
+
+// Implementation after CXLController is defined
+void
+TranslationEvent::process()
+{
+    controller->processNextTranslation();
 }
 
 void
@@ -42,14 +54,15 @@ CXLController::CXLController(const CXLControllerParams &p)
     : SimObject(p),
       traceFilePath(p.trace_file),
       outputFilePath(p.output_file), // Initialize output file path
+      blockSize(p.block_size),  // Fix initialization order to match declaration
       cacheLineSize(p.cache_line_size),
-      blockSize(p.block_size),
       cachePort(name() + ".cache_port", this, true),
       memPort(name() + ".mem_port", this, false),
       translationPort(name() + ".translation_port", this, false),
       totalRequests(0), // This is total from trace file
       completedRequests(0), // This counts completed requests
-      stats(this)
+      translationEvent(nullptr),
+      lastTranslationTick(0)
 {
     // Open the output file
     outputFile.open(outputFilePath);
@@ -77,6 +90,9 @@ CXLController::CXLController(const CXLControllerParams &p)
     // Register dumpStats to be called when simulation exits
     registerExitCallback([this](){ dumpStats(); });
     DPRINTF(CXLCard, "Registered dumpStats exit callback.\n");
+
+    // Create translation event
+    translationEvent = new TranslationEvent(this, name() + ".translation_event");
 }
 
 
@@ -128,6 +144,11 @@ CXLController::~CXLController()
     dependentReqs.clear();
     outstandingMemReqs.clear();
     outstandingReqs.clear();
+
+    // Clean up translation event
+    if (translationEvent) {
+        delete translationEvent;
+    }
 }
 
 void
@@ -138,6 +159,9 @@ CXLController::dumpStats()
     double avgTotalLatency = (completedRequests > 0) ? (totalLatencySum / completedRequests) : 0.0;
     double avgHitLatency = (hitCount > 0) ? (hitLatencySum / hitCount) : 0.0;
     double avgMissLatency = (missCount > 0) ? (missLatencySum / missCount) : 0.0;
+
+    // Calculate hit rate
+    double hitRate = (completedRequests > 0) ? ((double)hitCount / completedRequests * 100.0) : 0.0;
 
     // Write summary statistics to the output file with fixed widths
     if (outputFile.is_open()) {
@@ -152,6 +176,8 @@ CXLController::dumpStats()
                    << std::setw(15) << avgHitLatency << " ns (" << hitCount << " hits)" << std::endl;
         outputFile << std::left << std::setw(25) << "Average Miss Latency:"
                    << std::setw(15) << avgMissLatency << " ns (" << missCount << " misses)" << std::endl;
+        outputFile << std::left << std::setw(25) << "Cache Hit Rate:"
+                   << std::setw(15) << hitRate << " %" << std::endl;
 
         // Ensure data is flushed to the file
         outputFile.flush();
@@ -161,6 +187,144 @@ CXLController::dumpStats()
     }
 }
 
+// Add new method to process next translation
+void
+CXLController::processNextTranslation()
+{
+    if (translationQueue.empty()) {
+        DPRINTF(CXLCard, "No pending translations in queue.\n");
+        return;
+    }
+
+    CXLRequest* req = translationQueue.front();
+    translationQueue.pop_front();  // Use pop_front() instead of pop()
+
+    DPRINTF(CXLCard, "Processing next translation for req %p addr 0x%lx\n",
+            req, req->addr);
+
+    // If request already completed, skip translation
+    if (req->completed) {
+        DPRINTF(CXLCard, "Request %p already completed, skipping translation\n", req);
+        // Schedule next translation if queue not empty
+        if (!translationQueue.empty()) {
+            scheduleNextTranslation();
+        }
+        return;
+    }
+
+    // Send the translation request
+    bool success = doSendAddressTranslationRequest(*req);
+
+    // If failed to send, requeue at front
+    if (!success) {
+        DPRINTF(CXLCard, "Failed to send translation for req %p, requeueing\n", req);
+        translationQueue.push_front(req);
+    }
+
+    // Schedule next translation if queue not empty
+    if (!translationQueue.empty()) {
+        scheduleNextTranslation();
+    }
+}
+
+// Add method to schedule next translation
+void
+CXLController::scheduleNextTranslation()
+{
+    // Schedule next translation after delay
+    Tick nextTick = curTick() + 5000; // 5000 ticks delay
+
+    DPRINTF(CXLCard, "Scheduling next translation at tick %lu (current: %lu)\n",
+            nextTick, curTick());
+
+    // Schedule the event
+    if (!translationEvent->scheduled()) {
+        schedule(translationEvent, nextTick);
+    }
+}
+
+// Modify this to queue translations instead of sending immediately
+bool
+CXLController::sendAddressTranslationRequest(CXLRequest &req)
+{
+    // Add request to queue
+    DPRINTF(CXLCard, "Queueing translation request for addr 0x%lx (req %p)\n",
+            req.addr, &req);
+
+    // Find the tracked request pointer
+    CXLRequest* trackedReq = nullptr;
+    for (size_t i = 0; i < requests.size(); i++) {
+        if (requests[i].addr == req.addr &&
+            requests[i].time_us == req.time_us &&
+            !requests[i].completed)
+        {
+            trackedReq = &requests[i];
+            break;
+        }
+    }
+
+    if (!trackedReq) {
+        warn("Cannot find tracked request for addr 0x%lx", req.addr);
+        return false;
+    }
+
+    // Add to queue
+    translationQueue.push_back(trackedReq);
+
+    // If this is the first request or we've waited enough time
+    if (translationQueue.size() == 1 ||
+        (curTick() - lastTranslationTick) >= 5000)
+    {
+        scheduleNextTranslation();
+    }
+
+    return true;
+}
+
+// Add method to actually send the translation request
+bool
+CXLController::doSendAddressTranslationRequest(CXLRequest &req)
+{
+    // Get the original address
+    Addr origAddr = req.addr;
+
+    // Get the block address (aligned to cache line size)
+    Addr blockAddr = origAddr & ~(blockSize - 1);
+
+    // Translation table is in the second half of memory (0x40000000 - 0x80000000)
+    // Calculate a lookup address in the translation table based on the block address
+    Addr translationAddr = 0x40000000 + blockAddr;
+
+    DPRINTF(CXLCard, "Translation lookup: original addr 0x%lx (block addr 0x%lx) → table lookup addr 0x%lx (Req: %p)\n",
+            origAddr, blockAddr, translationAddr, &req);
+
+    // Create request and packet - explicitly use 8 bytes (64 bits) for translation lookup
+    auto transReq = std::make_shared<Request>(translationAddr, 8, 0, 0);
+    PacketPtr pkt = new Packet(transReq, MemCmd::ReadReq);
+    pkt->allocate();
+
+    // Store in request
+    // Ensure we don't overwrite an existing packet pointer
+    if (req.transPkt) {
+        warn("Req %p already has a transPkt %p assigned when creating new transPkt %p", &req, req.transPkt, pkt);
+        delete req.transPkt; // Delete old packet
+    }
+    req.transPkt = pkt;
+    req.translationSent = true;
+
+    // Update the last translation time
+    lastTranslationTick = curTick();
+
+    // Send request
+    bool success = translationPort.sendTimingReq(pkt);
+    if (!success) {
+        DPRINTF(CXLCard, "Translation port busy, adding transPkt %p to retry queue for Req %p\n", pkt, &req);
+        translationRetryQueue.push(pkt);
+        return false;
+    }
+
+    return success;
+}
 
 void
 CXLController::completeDependentRequests(CXLRequest* primaryReq) // Renamed parameter
@@ -583,7 +747,6 @@ CXLController::completeRequest(CXLRequest* req, PacketPtr respPkt)
 
     // Determine hit/miss status (req->cacheHit should be set correctly by caller or dependent logic)
     bool isHit = req->cacheHit;
-    bool isRead = req->isRead;
 
     // --- Logging to File ---
     if (outputFile.is_open()) {
@@ -607,32 +770,6 @@ CXLController::completeRequest(CXLRequest* req, PacketPtr respPkt)
         missCount++;
     }
 
-    // --- Update Statistics Counters ---
-    stats.totalRequests++; // Increment completed requests counter stat
-
-    if (isRead) {
-        // Removed readLatency stat update
-        if (isHit) {
-            // Removed hitLatency and readHitLatency stat updates
-            stats.totalHits++;
-            stats.readHits++;
-        } else {
-            // Removed missLatency and readMissLatency stat updates
-            stats.totalMisses++;
-            stats.readMisses++;
-        }
-    } else { // Write
-        // Removed writeLatency stat update
-        if (isHit) {
-            // Removed hitLatency and writeHitLatency stat updates
-            stats.totalHits++;
-            stats.writeHits++;
-        } else {
-            // Removed missLatency and writeMissLatency stat updates
-            stats.totalMisses++;
-            stats.writeMisses++;
-        }
-    }
 
     // Print completion information with floating point time (optional, kept for debug)
     DPRINTF(CXLCard, "Completed CXL Request: %s Address: 0x%lx Time: %.3f us Compression Ratio: %.2f Latency: %.2f ns (%s) (Req: %p)\n",
@@ -921,49 +1058,6 @@ CXLController::sendRequestToMemory(CXLRequest &req)
 }
 
 
-bool
-CXLController::sendAddressTranslationRequest(CXLRequest &req)
-{
-    // Get the original address
-    Addr origAddr = req.addr;
-
-    // Get the block address (aligned to cache line size)
-    Addr blockAddr = origAddr & ~(blockSize - 1);
-
-    // Translation table is in the second half of memory (0x40000000 - 0x80000000)
-    // Calculate a lookup address in the translation table based on the block address
-    Addr translationAddr = 0x40000000 + blockAddr;
-
-    DPRINTF(CXLCard, "Translation lookup: original addr 0x%lx (block addr 0x%lx) → table lookup addr 0x%lx (Req: %p)\n",
-            origAddr, blockAddr, translationAddr, &req);
-
-    // Create request and packet - explicitly use 8 bytes (64 bits) for translation lookup
-    auto transReq = std::make_shared<Request>(translationAddr, 8, 0, 0);
-    PacketPtr pkt = new Packet(transReq, MemCmd::ReadReq);
-    pkt->allocate();
-
-    // Store in request
-    // Ensure we don't overwrite an existing packet pointer
-    if (req.transPkt) {
-        warn("Req %p already has a transPkt %p assigned when creating new transPkt %p", &req, req.transPkt, pkt);
-        delete req.transPkt; // Delete old packet
-    }
-    req.transPkt = pkt;
-    req.translationSent = true;
-
-
-    // Send request
-    bool success = translationPort.sendTimingReq(pkt);
-    if (!success) {
-        DPRINTF(CXLCard, "Translation port busy, adding transPkt %p to retry queue for Req %p\n", pkt, &req); // MODIFIED message
-        translationRetryQueue.push(pkt);
-        // Return true because we accepted the request (it's queued)
-        return true;
-    }
-
-    return success; // Should be true if not added to retry queue
-}
-
 void
 CXLController::processRequest(const CXLRequest &reqEvent)
 {
@@ -1087,10 +1181,20 @@ CXLController::loadTrace()
 
     std::string line;
     while (std::getline(traceFile, line)) {
+        // Skip comment lines starting with //
+        if (line.size() >= 2 && line[0] == '/' && line[1] == '/') {
+            continue;
+        }
+
+        // Skip empty lines
+        if (line.empty() || line.find_first_not_of(" \t\n\r") == std::string::npos) {
+            continue;
+        }
+
         std::istringstream iss(line);
         char rw;
         Addr addr;
-        double time_us;  // Changed from uint64_t to double
+        double time_us;
         double comprRatio;
 
         if (!(iss >> rw >> std::hex >> addr >> std::dec >> time_us >> comprRatio)) {
@@ -1110,7 +1214,6 @@ CXLController::loadTrace()
     // Update the total number of requests
     totalRequests = requests.size();
 
-    // Fix the format specifier for size_t
     DPRINTF(CXLCard, "Loaded %u CXL requests from trace file: %s\n",
            requests.size(), traceFilePath);
 }

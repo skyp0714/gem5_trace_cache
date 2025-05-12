@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 #include <queue>
+#include <deque>  // Add for deque
 #include <unordered_map>
 #include <iostream> // Include for std::ofstream
 
@@ -15,13 +16,13 @@
 #include "mem/port.hh"
 #include "mem/packet.hh"
 #include "mem/request.hh"
-#include "base/statistics.hh"  // Add this include for stats
 
 namespace gem5
 {
 
-// Forward declaration
+// Forward declarations
 class CXLController;
+class TranslationEvent;  // Add forward declaration
 
 // Definition for a single CXL request from the trace
 struct CXLRequest
@@ -86,10 +87,8 @@ class CXLController : public SimObject
     // Output file stream
     std::ofstream outputFile;
 
-    // Cache line size
+    // Fix order to match initialization
     const unsigned blockSize;
-
-    // Cache line size
     const unsigned cacheLineSize;
 
     // Vector of CXL requests
@@ -146,22 +145,6 @@ class CXLController : public SimObject
     uint64_t hitCount = 0; // Use uint64_t for potentially large counts
     uint64_t missCount = 0;
 
-    // Statistics (Counters only)
-    struct CXLStats : public statistics::Group
-    {
-        CXLStats(statistics::Group *parent);
-
-        // Count statistics for hits and misses
-        statistics::Scalar totalRequests; // This will track completed requests
-        statistics::Scalar totalHits;
-        statistics::Scalar totalMisses;
-        statistics::Scalar readHits;
-        statistics::Scalar readMisses;
-        statistics::Scalar writeHits;
-        statistics::Scalar writeMisses;
-        // Removed hitRate formula as it depended on removed stats
-    } stats;
-
     // Load the trace file
     void loadTrace();
 
@@ -180,6 +163,12 @@ class CXLController : public SimObject
     // Send a request for address translation
     bool sendAddressTranslationRequest(CXLRequest &req);
 
+    // Actually send the translation request to the port
+    bool doSendAddressTranslationRequest(CXLRequest &req);
+
+    // Schedule the next translation event
+    void scheduleNextTranslation();
+
     // Check if all requests have been completed
     bool allRequestsCompleted() const;
 
@@ -196,6 +185,11 @@ class CXLController : public SimObject
         CacheCallbackState(CXLRequest* req, PacketPtr pkt)
             : origReq(req), origPkt(pkt) {}
     };
+
+    // Translation request queue and scheduling
+    std::deque<CXLRequest*> translationQueue;
+    TranslationEvent* translationEvent;
+    Tick lastTranslationTick;
 
   public:
     CXLController(const CXLControllerParams &p);
@@ -221,6 +215,9 @@ class CXLController : public SimObject
 
     // Dump final statistics to the output file
     void dumpStats(); // Add this function declaration
+
+    // Add processNextTranslation here so TranslationEvent can access it
+    void processNextTranslation();
 
     Port &getPort(const std::string &if_name,
                   PortID idx = InvalidPortID) override;
