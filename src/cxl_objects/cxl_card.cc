@@ -331,31 +331,79 @@ CXLController::CXLRequestPort::recvTimingResp(PacketPtr pkt)
         delete pkt;
         req->transPkt = nullptr; // Clear pointer in request
 
-    } else { // Memory Port Path (Simplified)
+    } else { // Memory Port Path (Simplified) -> Response from DecompressionEngine
         Addr addr = pkt->getAddr(); // Aligned translated address
         Addr lineAddr = addr & ~(controller->cacheLineSize - 1);
 
-        DPRINTF(CXLCard, "Received response from decompression engine for addr 0x%lx\n", addr);
+        DPRINTF(CXLCard, "Received response from decompression engine for addr 0x%lx (pkt %p, cmd %s, size %u)\n",
+                addr, pkt, pkt->cmdString(), pkt->getSize());
 
         // Find the primary request associated with this memory address
         auto memReqIt = controller->outstandingMemReqs.find(lineAddr);
         if (memReqIt == controller->outstandingMemReqs.end()) {
-            warn("Received memory response for address 0x%lx, but no matching outstanding memory request found.\n", lineAddr);
-            delete pkt; // Clean up incoming packet
+            warn("Received memory response for address 0x%lx, but no matching outstanding memory request found. Deleting pkt %p.\n", lineAddr, pkt);
+            // If DecompressionEngine always sends a new packet, we might need to delete it.
+            // However, current design is DecompressionEngine reuses CXLController's packet.
+            // If pkt is not primaryReq->memPkt, it might need deletion.
+            // Let's assume for now it's an error if not found.
+            delete pkt;
             return true;
         }
 
         CXLRequest* primaryReq = memReqIt->second;
-        DPRINTF(CXLCard, "Found primary memory request (req %p, orig_addr 0x%lx) for translated addr 0x%lx\n",
-               primaryReq, primaryReq->addr, lineAddr);
+        DPRINTF(CXLCard, "Found primary memory request (req %p, orig_addr 0x%lx, memPkt %p) for translated addr 0x%lx (respPkt %p)\n",
+               primaryReq, primaryReq->addr, primaryReq->memPkt, lineAddr, pkt);
 
         // Check if already completed first
         if (primaryReq->completed) {
-             DPRINTF(CXLCard, "Primary request %p already completed, ignoring memory response.\n", primaryReq);
+             DPRINTF(CXLCard, "Primary request %p already completed, ignoring memory response pkt %p.\n", primaryReq, pkt);
              controller->outstandingMemReqs.erase(memReqIt); // Still erase from map
-             delete pkt; // Delete the incoming packet
+             // If pkt is different from primaryReq->memPkt, it might be a new packet from DecompEngine.
+             // If it's the same, CXLRequest destructor will handle it.
+             if (pkt != primaryReq->memPkt) {
+                 delete pkt;
+             }
              return true;
         }
+
+        // The received packet 'pkt' SHOULD BE the same as primaryReq->memPkt
+        // if DecompressionEngine reused it and filled data into it.
+        if (pkt != primaryReq->memPkt) {
+            warn("Memory response packet %p is DIFFERENT from original memPkt %p for req %p. This is unexpected with current design. DecompEngine should return the original memPkt.",
+                 pkt, primaryReq->memPkt, primaryReq);
+            // If they are different, this indicates a logic error in DecompressionEngine or here.
+            // For safety, delete the unexpected 'pkt' and proceed with primaryReq->memPkt if it's valid,
+            // or flag an error. For now, assume DecompEngine *must* return primaryReq->memPkt.
+            // If DecompEngine created a new packet, it should have copied data to primaryReq->memPkt
+            // and this 'pkt' is the new one.
+            // This path implies DecompressionEngine sent a *new* packet as response,
+            // and did *not* fill data into primaryReq->memPkt.
+            // This contradicts the design where DecompressionEngine fills primaryReq->memPkt.
+            // If this happens, primaryReq->memPkt might not have the response data.
+            // For now, we will assume 'pkt' contains the data and proceed, but this needs fixing.
+            // Let's assume DecompressionEngine *did* fill primaryReq->memPkt and pkt is just a wrapper that should be primaryReq->memPkt.
+            // If pkt is truly different and contains the data, then primaryReq->memPkt is stale.
+            // The design is that DecompressionEngine receives primaryReq->memPkt, fills it, and returns it.
+            // So, 'pkt' received here *must* be primaryReq->memPkt.
+            // If not, it's a critical error.
+            fatal("Memory response packet mismatch: received %p, expected %p for primaryReq %p. DecompressionEngine must return the original memPkt.", pkt, primaryReq->memPkt, primaryReq);
+        }
+
+        DPRINTF(CXLCard, "Memory response pkt %p (cmd %s, size %u, hasData %d, isError %d) matches primaryReq->memPkt %p.\n",
+                pkt, pkt->cmdString(), pkt->getSize(), pkt->hasData(), pkt->isError(), primaryReq->memPkt);
+
+        // Ensure the packet (primaryReq->memPkt) has data and is valid before using getConstPtr
+        if (!primaryReq->memPkt->hasData() && primaryReq->isRead) { // Write responses might not have data
+            warn("Primary request's memPkt %p (for read) has no data after DecompressionEngine response for addr 0x%lx. Aborting fill/completion.",
+                 primaryReq->memPkt, primaryReq->addr);
+            // Potentially an error in DecompressionEngine not setting data.
+            // We cannot proceed to copy data if it's not there.
+            controller->outstandingMemReqs.erase(memReqIt); // Clean up map
+            // Don't complete the request as it's errored. Or complete with error.
+            // For now, just return. This will likely lead to a hang or timeout.
+            return true;
+        }
+
 
         // Remove from outstanding memory requests map *before* potential cache fill send
         controller->outstandingMemReqs.erase(memReqIt);
@@ -364,19 +412,24 @@ CXLController::CXLRequestPort::recvTimingResp(PacketPtr pkt)
         // If this was a read miss, send a cache fill request
         if (primaryReq->isRead && !primaryReq->cacheHit) {
             Addr cacheLineAddr = primaryReq->addr & ~(controller->cacheLineSize - 1);
-            auto fillReq = std::make_shared<Request>(cacheLineAddr, controller->cacheLineSize, 0, 0);
-            PacketPtr fillPkt = new Packet(fillReq, MemCmd::WriteLineReq);
+            auto fillReq_s = std::make_shared<Request>(cacheLineAddr, controller->cacheLineSize, 0, 0); // Renamed to avoid conflict
+            PacketPtr fillPkt = new Packet(fillReq_s, MemCmd::WriteLineReq);
             fillPkt->allocate();
 
-            // Copy data from the memory response packet (pkt)
-            if (pkt && pkt->hasData()) { // Use pkt directly
-                size_t copySize = std::min((size_t)pkt->getSize(), (size_t)fillPkt->getSize());
+            // Copy data from the memory response packet (primaryReq->memPkt, which is 'pkt')
+            // This is where the assertion `flags.isSet(STATIC_DATA|DYNAMIC_DATA)` happens.
+            // We must ensure primaryReq->memPkt (which is 'pkt') is valid.
+            DPRINTF(CXLCard, "Attempting to copy data for cache fill from primaryReq->memPkt %p (size %u, hasData %d)\n",
+                    primaryReq->memPkt, primaryReq->memPkt->getSize(), primaryReq->memPkt->hasData());
+
+            if (primaryReq->memPkt->hasData()) { // Use primaryReq->memPkt directly
+                size_t copySize = std::min((size_t)primaryReq->memPkt->getSize(), (size_t)fillPkt->getSize());
                 std::memcpy(fillPkt->getPtr<uint8_t>(),
-                           pkt->getConstPtr<uint8_t>(), // Use pkt directly
+                           primaryReq->memPkt->getConstPtr<uint8_t>(), // Use primaryReq->memPkt
                            copySize);
-                DPRINTF(CXLCard, "Copied %u bytes from mem response pkt to fillPkt for primary req %p\n", copySize, primaryReq);
+                DPRINTF(CXLCard, "Copied %lu bytes from mem response pkt to fillPkt for primary req %p\n", (unsigned long)copySize, primaryReq); // MODIFIED: format specifier and cast
             } else {
-                 warn("Memory response pkt has no data or is null for cache fill in recvTimingResp (req %p)", primaryReq);
+                 warn("Memory response pkt (primaryReq->memPkt %p) has no data for cache fill in recvTimingResp (req %p)", primaryReq->memPkt, primaryReq);
             }
 
             // Try to send the cache fill request
@@ -394,11 +447,15 @@ CXLController::CXLRequestPort::recvTimingResp(PacketPtr pkt)
         primaryReq->cacheHit = false;
 
         // Complete the primary request. This handles dependents and removal from outstandingReqs.
-        // Pass nullptr for respPkt as we are handling the memory response pkt separately.
-        controller->completeRequest(primaryReq, nullptr);
+        // Pass primaryReq->memPkt as the response packet.
+        // The data for the original request is now in primaryReq->memPkt.
+        controller->completeRequest(primaryReq, primaryReq->memPkt); // Pass memPkt
 
-        // Clean up the memory response packet
-        delete pkt; // Delete the incoming packet here
+        // DO NOT delete pkt (which is primaryReq->memPkt) here.
+        // It will be deleted by CXLRequest's destructor if completeRequest doesn't take ownership,
+        // or handled by completeRequest if it does.
+        // Current completeRequest logic expects to delete respPkt if it's not memPkt.
+        // Since we are passing memPkt, it should not be deleted there.
     }
 
     return true;
@@ -497,8 +554,10 @@ CXLController::completeRequest(CXLRequest* req, PacketPtr respPkt)
     // Check if this specific request instance has already been completed
     if (req->completed) {
         DPRINTF(CXLCard, "Request %p for addr 0x%lx already completed, skipping completeRequest.\n", req, req->addr);
-        // Clean up the optional response packet if provided
-        if (respPkt) delete respPkt;
+        // Clean up the optional response packet if provided AND it's not the request's own memPkt
+        if (respPkt && respPkt != req->memPkt && respPkt != req->pkt && respPkt != req->transPkt) {
+             delete respPkt;
+        }
         return;
     }
 
@@ -585,9 +644,15 @@ CXLController::completeRequest(CXLRequest* req, PacketPtr respPkt)
            req);
 
     // Clean up the optional response packet passed for cache hits etc.
-    // The primary memory response packet (req->memPkt) is deleted by the caller (recvTimingResp memory path)
-    if (respPkt && respPkt != req->memPkt) {
+    // The primary memory response packet (req->memPkt) is now passed as respPkt for memory path.
+    // It should NOT be deleted here if it's one of the request's own packets.
+    // CXLRequest destructor will handle req->pkt, req->memPkt, req->transPkt.
+    if (respPkt && respPkt != req->memPkt && respPkt != req->pkt && respPkt != req->transPkt) {
+         DPRINTF(CXLCard, "Deleting respPkt %p in completeRequest as it's not one of req %p's main packets.\n", respPkt, req);
          delete respPkt;
+    } else if (respPkt) {
+         DPRINTF(CXLCard, "Not deleting respPkt %p in completeRequest as it is one of req %p's main packets (pkt: %p, memPkt: %p, transPkt: %p).\n",
+                 respPkt, req, req->pkt, req->memPkt, req->transPkt);
     }
 
     // Remove this specific request instance from outstanding requests map
@@ -652,6 +717,13 @@ CXLController::processCacheMiss(CXLRequest* req, PacketPtr missPkt)
 
     // Only send read misses to memory (write misses are ignored with no-write-allocate)
     if (req->isRead) {
+        // Check if a memory request for this CXLRequest has already been sent
+        // This means req->memPkt would be non-null if sendRequestToMemory was called previously.
+        if (req->memPkt != nullptr) {
+            DPRINTF(CXLCard, "Memory request already in progress or queued for Req %p (memPkt %p), not sending again from processCacheMiss.\n", req, req->memPkt);
+            return; // Do not send another memory request if one is already pending/sent
+        }
+
         // Check if translation is already done
         if (req->translationDone) {
             DPRINTF(CXLCard, "Translation already complete for Req %p, proceeding with memory request\n", req);

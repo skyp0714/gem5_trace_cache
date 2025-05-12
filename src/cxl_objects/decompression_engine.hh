@@ -2,7 +2,8 @@
 #define __CXL_DECOMPRESSION_ENGINE_HH__
 
 #include <queue>
-#include <map> // Include map
+#include <map>
+#include <vector> // Added for std::vector
 
 #include "mem/port.hh"
 #include "params/DecompressionEngine.hh"
@@ -12,19 +13,106 @@
 namespace gem5
 {
 
+class DecompressionEngine; // Forward declaration
+
 /**
- * The DecompressionEngine is responsible for simulating the decompression
- * of data between memory and the CXL controller. It receives requests from
- * the CXL controller, forwards them to memory, and applies a decompression
- * latency to responses before sending them back. It can simulate multiple
- * parallel decompression units.
+ * Request structure that holds the information about the request
+ * including the original packet
  */
+struct DecompressionRequest {
+    PacketPtr pkt;          // Original request packet from CXLController (for parent)
+                            // or chunk packet to memory (for chunk)
+    PacketPtr respPkt;      // Response packet from memory (for chunk)
+                            // or aggregated response packet (for parent, if created separately)
+                            // In the new design, parent's pkt will be reused for final response.
+    Tick arrivalTime;
+    bool readyToRespond;
+
+    // For chunking
+    bool isChunk;
+    DecompressionRequest* parentRequest; // If this is a chunk, points to parent
+    std::vector<DecompressionRequest*> chunkRequests; // If this is a parent, holds its chunks
+    char* responseData;                  // If this is a parent, buffer for aggregated chunk data
+    unsigned chunkIndex;                 // If this is a chunk, its index
+    unsigned totalChunks;                // Total number of chunks for this request
+    unsigned completedChunks;            // Number of chunks that have received responses
+
+    DecompressionRequest(PacketPtr _pkt, Tick _time)
+        : pkt(_pkt), respPkt(nullptr), arrivalTime(_time), readyToRespond(false),
+          isChunk(false), parentRequest(nullptr), responseData(nullptr),
+          chunkIndex(0), totalChunks(1), completedChunks(0) {}
+
+    // Destructor to clean up dynamically allocated resources if any owned by this struct directly
+    // Note: pkt and respPkt are managed elsewhere or by smart pointers if used.
+    // responseData and chunkRequests (if this is a parent) need careful management.
+    ~DecompressionRequest() {
+        // If this is a parent request, it owns responseData and its chunkRequest objects
+        if (!isChunk) {
+            delete[] responseData; // Safe to call delete[] on nullptr
+            for (DecompressionRequest* chunk_req : chunkRequests) {
+                // Chunk's pkt might be new or shared, handle carefully.
+                // Assuming chunk's pkt is created by DecompressionEngine and needs deletion.
+                delete chunk_req->pkt;
+                delete chunk_req; // Delete the chunk request object itself
+            }
+            chunkRequests.clear();
+        }
+        // If this is a chunk, its pkt is managed by its creation logic or parent.
+        // respPkt (if any) is also managed by the engine logic.
+    }
+
+    // Prevent copying to avoid double deletion issues with raw pointers.
+    DecompressionRequest(const DecompressionRequest&) = delete;
+    DecompressionRequest& operator=(const DecompressionRequest&) = delete;
+    // Allow move
+    DecompressionRequest(DecompressionRequest&& other) noexcept
+        : pkt(other.pkt), respPkt(other.respPkt), arrivalTime(other.arrivalTime),
+          readyToRespond(other.readyToRespond), isChunk(other.isChunk),
+          parentRequest(other.parentRequest), chunkRequests(std::move(other.chunkRequests)),
+          responseData(other.responseData), chunkIndex(other.chunkIndex),
+          totalChunks(other.totalChunks), completedChunks(other.completedChunks) {
+        other.pkt = nullptr;
+        other.respPkt = nullptr;
+        other.parentRequest = nullptr;
+        other.responseData = nullptr;
+    }
+    DecompressionRequest& operator=(DecompressionRequest&& other) noexcept {
+        if (this != &other) {
+            // Clean up existing resources
+            if (!isChunk) {
+                delete[] responseData;
+                for (DecompressionRequest* chunk_req : chunkRequests) {
+                    delete chunk_req->pkt;
+                    delete chunk_req;
+                }
+                chunkRequests.clear();
+            }
+
+            pkt = other.pkt;
+            respPkt = other.respPkt;
+            arrivalTime = other.arrivalTime;
+            readyToRespond = other.readyToRespond;
+            isChunk = other.isChunk;
+            parentRequest = other.parentRequest;
+            chunkRequests = std::move(other.chunkRequests);
+            responseData = other.responseData;
+            chunkIndex = other.chunkIndex;
+            totalChunks = other.totalChunks;
+            completedChunks = other.completedChunks;
+
+            other.pkt = nullptr;
+            other.respPkt = nullptr;
+            other.parentRequest = nullptr;
+            other.responseData = nullptr;
+        }
+        return *this;
+    }
+};
+
+
 class DecompressionEngine : public ClockedObject
 {
   protected:
-    /**
-     * Port on the CXL controller side
-     */
     class CXLSidePort : public ResponsePort
     {
       private:
@@ -38,6 +126,8 @@ class DecompressionEngine : public ClockedObject
         bool recvTimingReq(PacketPtr pkt) override;
 
         void recvRespRetry() override;
+
+        void trySendRetries(); // ADDED: For CXL request retries
 
       protected:
         Tick recvAtomic(PacketPtr pkt) override;
@@ -61,19 +151,6 @@ class DecompressionEngine : public ClockedObject
         bool recvTimingResp(PacketPtr pkt) override;
 
         void recvReqRetry() override;
-    };
-
-    /**
-     * Request structure that holds the information about the request
-     * including the original packet
-     */
-    struct DecompressionRequest {
-        PacketPtr pkt;
-        Tick arrivalTime;
-        bool readyToRespond; // Flag used for response stalling
-
-        DecompressionRequest(PacketPtr _pkt, Tick _time)
-            : pkt(_pkt), arrivalTime(_time), readyToRespond(false) {}
     };
 
     /**
@@ -101,36 +178,63 @@ class DecompressionEngine : public ClockedObject
      */
     void trySendMemoryRetries(); // ADDED
 
-    /**
-     * Event scheduled when decompression completes
-     */
-    class DecompressionEvent : public Event
-    {
+    // Event for sending subsequent chunks with delay
+    class ChunkSendEvent : public Event {
       private:
         DecompressionEngine *engine;
-        DecompressionRequest *req;
+        DecompressionRequest *parentRequest; // The original request being chunked
+        unsigned nextChunkIndex;             // The index of the next chunk to send
 
       public:
+        ChunkSendEvent(DecompressionEngine *_engine, DecompressionRequest *_parentReq, unsigned _nextIdx)
+            : Event(Default_Pri), engine(_engine), parentRequest(_parentReq), nextChunkIndex(_nextIdx) {}
+
+        void process() override; // Implementation in .cc
+
+        const char *description() const override {
+            return "DecompressionEngine chunk send event";
+        }
+    };
+
+    // ADDED: Event for actual decompression completion
+    class DecompressionEvent : public Event {
+      private:
+        DecompressionEngine *engine;
+        DecompressionRequest *request; // The request that has finished decompression
+      public:
         DecompressionEvent(DecompressionEngine *_engine, DecompressionRequest *_req)
-            : Event(Default_Pri), engine(_engine), req(_req) {}
+            : Event(Default_Pri), engine(_engine), request(_req) {}
 
         void process() override {
-            engine->completeDecompression(req);
+            // This method will be implemented in the .cc file or inline here.
+            // For consistency with other events, let's assume it calls a method on the engine.
+            engine->completeDecompression(request);
         }
 
         const char *description() const override {
-            return "DecompressionEngine completion event";
+            return "DecompressionEngine decompression completion event";
         }
     };
+
+    // ADDED: Event for scheduling next memory send
+    class ScheduleMemSendEvent : public Event {
+      private:
+        DecompressionEngine *engine;
+      public:
+        ScheduleMemSendEvent(DecompressionEngine *_engine)
+            : Event(Default_Pri), engine(_engine) {}
+        void process() override; // Implementation in .cc
+        const char *description() const override {
+            return "DecompressionEngine schedule memory send event";
+        }
+    };
+
 
     /// CXL side port
     CXLSidePort cxlPort;
 
     /// Memory side port
     MemSidePort memPort;
-
-    /// Queue for requests waiting for memory port retry
-    std::queue<DecompressionRequest*> memoryRetryQueue; // ADDED
 
     /// Queue for requests that received memory response and wait for decompression engine
     std::queue<DecompressionRequest*> decompression_queue; // ADDED
@@ -159,11 +263,33 @@ class DecompressionEngine : public ClockedObject
     /// Number of currently active decompression operations
     unsigned active_decompressions; // ADDED
 
+    const Tick chunkSendDelay; // Delay between creating chunks and adding them to queue
+
+    // For CXL-side request retries
+    std::queue<PacketPtr> cxlRequestRetryQueue; // Queue for CXL requests that couldn't be processed immediately
+    bool cxlReqStalled;                         // Flag if CXL side is stalled for new requests
+
+    // For parent requests whose first chunk send failed due to memory stall
+    std::queue<DecompressionRequest*> memParentRetryQueue; // This might also be removable if all go via memSendCandidateQueue
+
+    // ADDED: For memory request serialization
+    std::queue<DecompressionRequest*> memSendCandidateQueue;
+    Tick nextMemSendAvailableAt;
+    static const Tick interMemoryRequestDelay = 5000; // Fixed 5000 ticks delay
+    ScheduleMemSendEvent memSendEvent;
+    bool memSendEventScheduled; // To prevent scheduling multiple send events
+
+
   public:
     DecompressionEngine(const DecompressionEngineParams &params);
+    ~DecompressionEngine(); // ADDED Destructor declaration
 
     Port &getPort(const std::string &if_name,
                   PortID idx = InvalidPortID) override;
+
+    // New method to send the next chunk, called by ChunkSendEvent
+    void sendNextChunk(DecompressionRequest* parentReq, unsigned chunkIndex);
+    void tryScheduleNextMemSend(); // ADDED
 };
 
 } // namespace gem5
