@@ -83,6 +83,9 @@ class BaseCache(ClockedObject):
     cxx_header = "mem/cache/base.hh"
     cxx_class = "gem5::BaseCache"
 
+    # CHANGED cache_line_size parameter to Param.Int and default to 64
+    cache_line_size = Param.Int(64, "Cache line size in bytes")
+
     size = Param.MemorySize("Capacity")
     assoc = Param.Unsigned("Associativity")
 
@@ -174,6 +177,9 @@ class Cache(BaseCache):
     type = "Cache"
     cxx_header = "mem/cache/cache.hh"
     cxx_class = "gem5::Cache"
+
+    # cache_line_size parameter is now inherited from BaseCache
+    # No need to define it here again
 
 
 class NoncoherentCache(BaseCache):

@@ -29,5 +29,8 @@ class CXLController(SimObject):
     # Port to connect to translation memory
     translation_port = RequestPort("Port for address translation")
 
+    # Block size (for making requests)
+    block_size = Param.Int(4096, "Block size size in bytes")
+
     # Cache line size (for making requests)
     cache_line_size = Param.Int(64, "Cache line size in bytes")

@@ -6,6 +6,7 @@
 #include <vector> // Added for std::vector
 
 #include "mem/port.hh"
+#include "debug/DecompEngine.hh"
 #include "params/DecompressionEngine.hh"
 #include "sim/clocked_object.hh"
 #include "sim/sim_object.hh"
@@ -43,22 +44,30 @@ struct DecompressionRequest {
           chunkIndex(0), totalChunks(1), completedChunks(0) {}
 
     // Destructor to clean up dynamically allocated resources if any owned by this struct directly
-    // Note: pkt and respPkt are managed elsewhere or by smart pointers if used.
-    // responseData and chunkRequests (if this is a parent) need careful management.
     ~DecompressionRequest() {
         // If this is a parent request, it owns responseData and its chunkRequest objects
         if (!isChunk) {
-            delete[] responseData; // Safe to call delete[] on nullptr
-            for (DecompressionRequest* chunk_req : chunkRequests) {
-                // Chunk's pkt might be new or shared, handle carefully.
-                // Assuming chunk's pkt is created by DecompressionEngine and needs deletion.
-                delete chunk_req->pkt;
-                delete chunk_req; // Delete the chunk request object itself
+            // Clean up responseData if it exists
+            delete[] responseData;
+            responseData = nullptr;
+
+            // Safely clean up chunk requests
+            for (size_t i = 0; i < chunkRequests.size(); i++) {
+                DecompressionRequest* chunk_req = chunkRequests[i];
+                if (chunk_req) {
+                    // Only delete chunk's packet if it still exists
+                    if (chunk_req->pkt) {
+                        delete chunk_req->pkt;
+                        chunk_req->pkt = nullptr;
+                    }
+                    delete chunk_req;
+                }
             }
             chunkRequests.clear();
         }
-        // If this is a chunk, its pkt is managed by its creation logic or parent.
-        // respPkt (if any) is also managed by the engine logic.
+        // If this is a chunk, its parent is responsible for cleanup
+        // No need to check parent vector, as chunks are explicitly marked as nullptr
+        // when processed in handleResponse
     }
 
     // Prevent copying to avoid double deletion issues with raw pointers.
@@ -256,6 +265,9 @@ class DecompressionEngine : public ClockedObject
 
     /// Compression block size in bytes
     const unsigned block_size;
+
+    /// Cacheline size in bytes
+    const unsigned cache_line_size;
 
     /// Number of parallel decompression engines
     const unsigned num_engines; // ADDED

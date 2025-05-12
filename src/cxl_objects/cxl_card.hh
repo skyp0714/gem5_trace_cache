@@ -87,6 +87,9 @@ class CXLController : public SimObject
     std::ofstream outputFile;
 
     // Cache line size
+    const unsigned blockSize;
+
+    // Cache line size
     const unsigned cacheLineSize;
 
     // Vector of CXL requests

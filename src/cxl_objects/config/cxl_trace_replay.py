@@ -1,6 +1,7 @@
 # Simple config file to run the CXLController SimObject
 
 import argparse
+import math  # Add math for log2
 import os
 
 import m5
@@ -124,26 +125,60 @@ system.l1cache = Cache(
     response_latency=50,
     mshrs=4,
     tgts_per_mshr=20,
+    cache_line_size=args.compression_block_size,  # Pass integer directly
 )
 
-# Set cache line size to match compression block size
-system.cache_line_size = args.compression_block_size
+# Set cache line size. Note: args.cacheline_size (default 64) is defined.
+# To meet DRAM interleaving requirements (interleaving granularity must be >= cache line size),
+# system.cache_line_size should be consistent with the intlv_granularity (64B).
+# We will use args.cacheline_size (default 64B) for the system's cache line size.
+system.cache_line_size = (
+    args.cacheline_size
+)  # Set system-wide cache line size to args.cacheline_size (e.g., 64)
 
 # Create the CXL controller with updated cache line size and output file
 system.cxl_controller = CXLController(
     trace_file=args.trace_file,
-    output_file=args.output_file,  # Pass the output file path
-    cache_line_size=args.compression_block_size,
+    output_file=args.output_file,
+    block_size=args.compression_block_size,
+    cache_line_size=args.cacheline_size,
 )
 
 # Connect the CXL controller to cache
 system.cxl_controller.cache_port = system.l1cache.cpu_side
 
-# Create a memory controller and connect it to the memory bus
-system.mem_ctrl = MemCtrl()
-system.mem_ctrl.dram = DDR4_2400_8x8()
-system.mem_ctrl.dram.range = system.mem_ranges[0]
-system.mem_ctrl.port = system.membus.mem_side_ports
+# Configure memory controllers for 4 channels with 64B interleaving
+num_mem_channels = 4
+intlv_granularity = 64  # Bytes
+
+# Calculate interleaving parameters
+intlv_bits = int(math.log2(num_mem_channels))
+intlv_low_bit = int(math.log2(intlv_granularity))
+# xor_low_bit = 0 by default in MemConfig.py, so xorHighBit will be 0
+xor_high_bit = (
+    0  # Assuming no XORing for simplicity, or based on xor_low_bit = 0
+)
+
+# system.mem_ctrls = [] # REMOVE: System object does not have a 'mem_ctrls' parameter by default
+_mem_controllers = (
+    []
+)  # Use a local list to keep track if needed for other Python logic
+for i in range(num_mem_channels):
+    mem_ctrl = MemCtrl()
+    mem_ctrl.dram = DDR4_2400_8x8()  # Or any other DRAM type
+    # Configure address range for interleaving
+    mem_ctrl.dram.range = AddrRange(
+        system.mem_ranges[0].start,
+        size=system.mem_ranges[0].size(),
+        intlvHighBit=intlv_low_bit + intlv_bits - 1,
+        xorHighBit=xor_high_bit,
+        intlvBits=intlv_bits,
+        intlvMatch=i,
+    )
+    mem_ctrl.port = system.membus.mem_side_ports
+    # Assign the memory controller to the system object with a unique name
+    setattr(system, f"mem_ctrl_{i}", mem_ctrl)
+    _mem_controllers.append(mem_ctrl)  # Keep in a local list if necessary
 
 # Connect the translation port directly to the main membus
 system.cxl_controller.translation_port = system.membus.cpu_side_ports
@@ -151,6 +186,7 @@ system.cxl_controller.translation_port = system.membus.cpu_side_ports
 # Make sure decompression engine uses the same block size and num_engines
 system.decompression_engine = DecompressionEngine(
     block_size=args.compression_block_size,
+    cache_line_size=args.cacheline_size,
     num_engines=4,  # Set the number of engines (can be parameterized later if needed)
 )
 system.cxl_controller.mem_port = system.decompression_engine.cxl_side_port
@@ -172,7 +208,7 @@ print(
     f"Logging latency details to: {args.output_file}"
 )  # Log output file path
 print(
-    f"L1 Cache: {args.l1_size}, {args.l1_assoc}-way, {args.compression_block_size}B lines"
+    f"L1 Cache: {args.l1_size}, {args.l1_assoc}-way, {system.l1cache.cache_line_size}B lines"  # Use actual L1 cache line size
 )
 print(f"Compression block size: {args.compression_block_size}B")
 print(

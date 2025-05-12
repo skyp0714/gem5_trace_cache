@@ -17,5 +17,8 @@ class DecompressionEngine(ClockedObject):
     decompression_latency = Param.Cycles(
         100, "Number of cycles for backward compatibility (no longer used)"
     )
-    block_size = Param.Int(64, "Compression block size in bytes (64B to 4KB)")
+    block_size = Param.Int(
+        4096, "Compression block size in bytes (64B to 4KB)"
+    )
+    cache_line_size = Param.Int(64, "Cache Line size in bytes (64B)")
     num_engines = Param.Unsigned(4, "Number of parallel decompression engines")

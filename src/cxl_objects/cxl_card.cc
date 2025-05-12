@@ -43,6 +43,7 @@ CXLController::CXLController(const CXLControllerParams &p)
       traceFilePath(p.trace_file),
       outputFilePath(p.output_file), // Initialize output file path
       cacheLineSize(p.cache_line_size),
+      blockSize(p.block_size),
       cachePort(name() + ".cache_port", this, true),
       memPort(name() + ".mem_port", this, false),
       translationPort(name() + ".translation_port", this, false),
@@ -333,7 +334,7 @@ CXLController::CXLRequestPort::recvTimingResp(PacketPtr pkt)
 
     } else { // Memory Port Path (Simplified) -> Response from DecompressionEngine
         Addr addr = pkt->getAddr(); // Aligned translated address
-        Addr lineAddr = addr & ~(controller->cacheLineSize - 1);
+        Addr lineAddr = addr & ~(controller->blockSize - 1);
 
         DPRINTF(CXLCard, "Received response from decompression engine for addr 0x%lx (pkt %p, cmd %s, size %u)\n",
                 addr, pkt, pkt->cmdString(), pkt->getSize());
@@ -411,8 +412,8 @@ CXLController::CXLRequestPort::recvTimingResp(PacketPtr pkt)
         // --- Cache Fill Logic ---
         // If this was a read miss, send a cache fill request
         if (primaryReq->isRead && !primaryReq->cacheHit) {
-            Addr cacheLineAddr = primaryReq->addr & ~(controller->cacheLineSize - 1);
-            auto fillReq_s = std::make_shared<Request>(cacheLineAddr, controller->cacheLineSize, 0, 0); // Renamed to avoid conflict
+            Addr cacheLineAddr = primaryReq->addr & ~(controller->blockSize - 1);
+            auto fillReq_s = std::make_shared<Request>(cacheLineAddr, controller->blockSize, 0, 0); // Renamed to avoid conflict
             PacketPtr fillPkt = new Packet(fillReq_s, MemCmd::WriteLineReq);
             fillPkt->allocate();
 
@@ -656,7 +657,7 @@ CXLController::completeRequest(CXLRequest* req, PacketPtr respPkt)
     }
 
     // Remove this specific request instance from outstanding requests map
-    Addr lineAddr = req->addr & ~(cacheLineSize - 1);
+    Addr lineAddr = req->addr & ~(blockSize - 1);
     auto range = outstandingReqs.equal_range(lineAddr);
     bool removed = false;
 
@@ -703,7 +704,7 @@ CXLController::processCacheMiss(CXLRequest* req, PacketPtr missPkt)
     // Mark as cache miss (should already be done, but ensure)
     req->cacheHit = false;
 
-    Addr blockAddr = req->addr & ~(cacheLineSize - 1);
+    Addr blockAddr = req->addr & ~(blockSize - 1);
     DPRINTF(CXLCard, "Cache miss for block address 0x%lx (request addr 0x%lx, Req: %p), checking translation\n",
             blockAddr, req->addr, req);
 
@@ -750,11 +751,11 @@ bool
 CXLController::sendRequestToCache(CXLRequest &req)
 {
     // Calculate the cache line address
-    Addr lineAddr = req.addr & ~(cacheLineSize - 1);
+    Addr lineAddr = req.addr & ~(blockSize - 1);
 
     // Create the request
     auto memReq = std::make_shared<Request>(
-        lineAddr, cacheLineSize, 0, 0);
+        lineAddr, blockSize, 0, 0);
 
     // Create the packet
     PacketPtr pkt = new Packet(memReq, req.isRead ?
@@ -765,7 +766,7 @@ CXLController::sendRequestToCache(CXLRequest &req)
 
     // If it's a write request, fill with some data
     if (!req.isRead) {
-        std::memset(pkt->getPtr<uint8_t>(), 0xA5, cacheLineSize);
+        std::memset(pkt->getPtr<uint8_t>(), 0xA5, blockSize);
     }
 
     // Store the packet in the request
@@ -838,7 +839,7 @@ CXLController::sendRequestToMemory(CXLRequest &req)
     assert(req.translationDone && "Translation must be complete before sending to memory");
 
     // Calculate the aligned address for memory access
-    Addr lineAddr = req.translatedAddr & ~(cacheLineSize - 1);
+    Addr lineAddr = req.translatedAddr & ~(blockSize - 1);
     DPRINTF(CXLCard, "Using translated address 0x%lx for memory request (Req %p)\n", lineAddr, &req);
 
     // --- Merging logic removed from here ---
@@ -846,12 +847,23 @@ CXLController::sendRequestToMemory(CXLRequest &req)
     // auto existingIt = outstandingMemReqs.find(lineAddr);
     // if (existingIt != outstandingMemReqs.end()) { ... }
 
-    // Calculate the compressed size based on compression ratio
+    // Calculate the raw compressed size based on compression ratio
     // comprRatio is in percentage, e.g. 50.0 means 50% of original size
-    unsigned compressedSize = std::max(static_cast<unsigned>(cacheLineSize * req.comprRatio / 100.0), 1u);
+    unsigned raw_compressed_size = std::max(static_cast<unsigned>(
+        static_cast<double>(blockSize) * req.comprRatio / 100.0), 1u);
 
-    DPRINTF(CXLCard, "Original size: %u bytes, Compressed size: %u bytes (%.2f%%)\n",
-            cacheLineSize, compressedSize, req.comprRatio);
+    // Round up to the nearest multiple of cacheLineSize.
+    // cacheLineSize is a SimObject parameter, expected to be > 0.
+    assert(cacheLineSize > 0 && "cacheLineSize must be positive for rounding.");
+    unsigned compressedSize = ((raw_compressed_size + cacheLineSize - 1) / cacheLineSize) * cacheLineSize;
+
+    // If raw_compressed_size was 0 (prevented by std::max), compressedSize could be 0.
+    // But since raw_compressed_size >= 1 and cacheLineSize >= 1,
+    // compressedSize will be at least cacheLineSize.
+    // e.g. raw_compressed_size=1, cacheLineSize=64 -> compressedSize=64.
+
+    DPRINTF(CXLCard, "Original size: %u bytes, Raw compressed size: %u bytes, Final rounded compressed size: %u bytes (Ratio: %.2f%%, CacheLineSize: %u)\n",
+            blockSize, raw_compressed_size, compressedSize, req.comprRatio, cacheLineSize);
 
     // Create the request for memory with the compressed size
     auto memReq = std::make_shared<Request>(
@@ -916,7 +928,7 @@ CXLController::sendAddressTranslationRequest(CXLRequest &req)
     Addr origAddr = req.addr;
 
     // Get the block address (aligned to cache line size)
-    Addr blockAddr = origAddr & ~(cacheLineSize - 1);
+    Addr blockAddr = origAddr & ~(blockSize - 1);
 
     // Translation table is in the second half of memory (0x40000000 - 0x80000000)
     // Calculate a lookup address in the translation table based on the block address
@@ -983,7 +995,7 @@ CXLController::processRequest(const CXLRequest &reqEvent)
     DPRINTF(CXLCard, "Processing request %p: Addr 0x%lx Time %.3f\n", trackedReq, trackedReq->addr, trackedReq->time_us);
 
     // --- Early Merging Logic ---
-    Addr blockAddr = trackedReq->addr & ~(cacheLineSize - 1);
+    Addr blockAddr = trackedReq->addr & ~(blockSize - 1);
     CXLRequest* primaryReq = nullptr;
 
     // Check if any request for this block is already outstanding

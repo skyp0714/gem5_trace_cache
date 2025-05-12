@@ -66,6 +66,7 @@ DecompressionEngine::DecompressionEngine(const DecompressionEngineParams &params
       responseStalled(false),
       respondingRequest(nullptr),
       block_size(params.block_size),
+      cache_line_size(params.cache_line_size),
       num_engines(params.num_engines), // Ensure num_engines is initialized
       active_decompressions(0),
       chunkSendDelay(1), // Default to 1 tick if params.chunk_send_delay_ticks is not available. Add to DecompressionEngineParams if needed.
@@ -81,19 +82,34 @@ DecompressionEngine::DecompressionEngine(const DecompressionEngineParams &params
 
 DecompressionEngine::~DecompressionEngine()
 {
-    // Clean up requests in various queues and maps
-    // This needs to be thorough to prevent memory leaks, especially with raw pointers.
+    DPRINTF(DecompEngine, "DEBUG: DecompressionEngine destructor called\n");
+
+    // Log counts before cleanup
+    DPRINTF(DecompEngine, "DEBUG: pendingRequests: %u, memSendCandidateQueue: %u, decompression_queue: %u, completed_queue: %u\n",
+            pendingRequests.size(), memSendCandidateQueue.size(), decompression_queue.size(), completed_queue.size());
 
     // Clear pendingRequests (these are typically chunks)
     for (auto& pair : pendingRequests) {
         DecompressionRequest* req = pair.second;
+        DPRINTF(DecompEngine, "DEBUG: Cleaning up pendingRequest %p (addr %#x)\n", req, pair.first);
+
         if (req) {
             // If it's a chunk, its pkt is owned by DecompressionEngine
             if (req->isChunk) {
-                delete req->pkt; // pkt is the chunk packet sent to memory
+                if (req->pkt) {
+                    DPRINTF(DecompEngine, "DEBUG: Deleting chunk pkt %p\n", req->pkt);
+                    delete req->pkt;
+                    req->pkt = nullptr;
+                }
             }
             // respPkt is the response from memory for this chunk
-            delete req->respPkt;
+            if (req->respPkt) {
+                DPRINTF(DecompEngine, "DEBUG: Deleting respPkt %p\n", req->respPkt);
+                delete req->respPkt;
+                req->respPkt = nullptr;
+            }
+
+            DPRINTF(DecompEngine, "DEBUG: Deleting request %p\n", req);
             delete req; // Delete the DecompressionRequest object for the chunk
         }
     }
@@ -179,6 +195,12 @@ DecompressionEngine::CXLSidePort::recvTimingReq(PacketPtr pkt)
     DPRINTF(DecompEngine, "Received request for addr %#x, size %u from CXL controller.\n",
             pkt->getAddr(), pkt->getSize());
 
+    // Check if request size is a multiple of cache_line_size
+    if (pkt->getSize() % owner->cache_line_size != 0) {
+        warn("Request size %u is not a multiple of cache_line_size %u. This may cause issues.",
+             pkt->getSize(), owner->cache_line_size);
+    }
+
     if (owner->cxlReqStalled) {
         DPRINTF(DecompEngine, "CXL side port stalled, queueing request for addr %#x.\n", pkt->getAddr());
         owner->cxlRequestRetryQueue.push(pkt);
@@ -187,16 +209,20 @@ DecompressionEngine::CXLSidePort::recvTimingReq(PacketPtr pkt)
 
     DecompressionRequest* parentReq = new DecompressionRequest(pkt, curTick());
 
-    // For read requests larger than 64 bytes, split into chunks
-    if (pkt->isRead() && pkt->getSize() > owner->block_size) {
-        parentReq->totalChunks = (pkt->getSize() + owner->block_size - 1) / owner->block_size;
+    // For read requests larger than cache_line_size, split into chunks
+    if (pkt->isRead() && pkt->getSize() > owner->cache_line_size) {
+        // Calculate the exact number of chunks - ensure all chunks have valid data
+        parentReq->totalChunks = pkt->getSize() / owner->cache_line_size;
+        if (pkt->getSize() % owner->cache_line_size != 0) {
+            parentReq->totalChunks++; // Add chunk only if there is a remainder
+        }
+
         parentReq->responseData = new char[pkt->getSize()]; // Buffer for aggregated data
         // Initialize responseData to zeros or some known pattern if necessary
         std::memset(parentReq->responseData, 0, pkt->getSize());
 
-
-        DPRINTF(DecompEngine, "Splitting read request for addr %#x (size %u) into %u chunks of %u bytes.\n",
-                pkt->getAddr(), pkt->getSize(), parentReq->totalChunks, owner->block_size);
+        DPRINTF(DecompEngine, "Splitting read request for addr %#x (size %u) into %u chunks of %u bytes each (last chunk may be smaller).\n",
+                pkt->getAddr(), pkt->getSize(), parentReq->totalChunks, owner->cache_line_size);
 
         // Send the first chunk immediately
         owner->sendNextChunk(parentReq, 0);
@@ -224,9 +250,27 @@ DecompressionEngine::sendNextChunk(DecompressionRequest* parentReq, unsigned chu
 
     Addr baseAddr = parentReq->pkt->getAddr();
     unsigned fullSize = parentReq->pkt->getSize();
-    unsigned offset = chunkIndex * block_size;
-    unsigned chunkSize = std::min(block_size, fullSize - offset);
+    unsigned offset = chunkIndex * cache_line_size;
+
+    // Calculate remaining size for the last chunk, otherwise use cache_line_size
+    unsigned chunkSize;
+    if (offset + cache_line_size > fullSize) {
+        chunkSize = fullSize - offset; // Request only the remaining data size
+    } else {
+        chunkSize = cache_line_size;
+    }
+
+    // Check if chunk size is 0 (prevent bugs)
+    if (chunkSize == 0) {
+        warn("Calculated chunk size is 0 for chunkIndex %u, offset %u, fullSize %u. Skipping chunk.",
+             chunkIndex, offset, fullSize);
+        return;
+    }
+
     Addr chunkAddr = baseAddr + offset;
+
+    DPRINTF(DecompEngine, "Creating chunk %u/%u for addr %#x: offset=%u, chunkSize=%u, chunkAddr=%#x, fullSize=%u\n",
+            chunkIndex + 1, parentReq->totalChunks, baseAddr, offset, chunkSize, chunkAddr, fullSize);
 
     // Create a new packet for the chunk
     // The request for the chunk should be a ReadReq
@@ -473,45 +517,117 @@ DecompressionEngine::handleResponse(PacketPtr memRespPkt)
                 parentReq, req->chunkIndex, respAddr, memRespPkt, memRespPkt->getSize(), memRespPkt->hasData() ? memRespPkt->getConstPtr<void>() : nullptr);
 
         if (memRespPkt->hasData() && parentReq->responseData) {
-            unsigned offset = req->chunkIndex * block_size;
-            size_t copySize = std::min((size_t)memRespPkt->getSize(),
-                                       (size_t)parentReq->pkt->getSize() - offset);
-             if (offset + copySize <= parentReq->pkt->getSize()) {
-                std::memcpy(parentReq->responseData + offset,
-                           memRespPkt->getConstPtr<uint8_t>(),
-                           copySize);
-                DPRINTF(DecompEngine, "ParentReq %p: Copied %zu bytes from chunk %u to offset %u.\n",
-                        parentReq, copySize, req->chunkIndex, offset);
+            unsigned offset = req->chunkIndex * cache_line_size;
+
+            // Check if offset is within the parent request size (important safety check)
+            if (offset >= parentReq->pkt->getSize()) {
+                warn("ParentReq %p: Chunk offset %u exceeds parent request size %u for chunk %u. Skipping copy.",
+                     parentReq, offset, parentReq->pkt->getSize(), req->chunkIndex);
             } else {
-                 warn("ParentReq %p: Chunk copy for index %u would exceed parent buffer.", parentReq, req->chunkIndex);
+                // Safely calculate copy size
+                size_t remainingSize = parentReq->pkt->getSize() - offset;
+                size_t copySize = std::min((size_t)memRespPkt->getSize(), remainingSize);
+
+                if (copySize > 0) {
+                    std::memcpy(parentReq->responseData + offset,
+                               memRespPkt->getConstPtr<uint8_t>(),
+                               copySize);
+                    DPRINTF(DecompEngine, "ParentReq %p: Copied %u bytes from chunk %u to offset %u.\n",
+                            parentReq, (unsigned int)copySize, req->chunkIndex, offset);
+                } else {
+                    warn("ParentReq %p: Calculated copy size is 0 for chunk %u at offset %u.",
+                         parentReq, req->chunkIndex, offset);
+                }
+            }
+        } else {
+            if (!memRespPkt->hasData()) {
+                warn("ParentReq %p: Memory response packet has no data for chunk %u.",
+                     parentReq, req->chunkIndex);
+            }
+            if (!parentReq->responseData) {
+                warn("ParentReq %p: responseData is null for chunk %u.",
+                     parentReq, req->chunkIndex);
             }
         }
-        delete memRespPkt; // Chunk's response packet is now processed
-        delete req->pkt;   // Delete the packet that was sent for this chunk
-        delete req;        // Delete the DecompressionRequest object for this chunk
 
+        // Safe cleanup - first backup important values
+        unsigned chunkIndex = req->chunkIndex;
+        unsigned totalChunks = parentReq->totalChunks;
+
+        DPRINTF(DecompEngine, "ParentReq %p: Cleaning up chunk %u resources (memRespPkt %p, req->pkt %p, req %p).\n",
+                parentReq, chunkIndex, memRespPkt, req->pkt, req);
+
+        // Find this chunk in parent's vector and mark it as nullptr
+        // This is crucial to avoid dangling pointers in the parent's vector
+        bool found = false;
+        for (size_t i = 0; i < parentReq->chunkRequests.size(); i++) {
+            if (parentReq->chunkRequests[i] == req) {
+                DPRINTF(DecompEngine, "ParentReq %p: Marking chunk %u (req %p) as nullptr in parent's vector at index %zu.\n",
+                        parentReq, chunkIndex, req, i);
+                parentReq->chunkRequests[i] = nullptr; // Mark as deleted in the parent's vector
+                found = true;
+                break;
+            }
+        }
+
+        if (!found) {
+            DPRINTF(DecompEngine, "WARNING: ParentReq %p: Could not find chunk %u (req %p) in parent's vector.\n",
+                    parentReq, chunkIndex, req);
+        }
+
+        // Check if memRespPkt and req->pkt are the same pointer
+        // This can happen if the memory system returns the same packet that was sent
+        bool same_packet = (memRespPkt == req->pkt);
+
+        if (same_packet) {
+            DPRINTF(DecompEngine, "ParentReq %p: memRespPkt and req->pkt are the same (%p). Will only delete once.\n",
+                    parentReq, memRespPkt);
+            // Only delete the packet once
+            delete memRespPkt;
+            req->pkt = nullptr; // Set to nullptr to avoid double deletion
+        } else {
+            // Normal case - different pointers
+            if (memRespPkt) {
+                delete memRespPkt;
+            }
+
+            if (req->pkt) {
+                delete req->pkt;
+                req->pkt = nullptr;
+            }
+        }
+
+        // Delete the chunk request object (safe now that packet pointers are nullified)
+        delete req;
+
+        // Update parent's completed chunks count
         parentReq->completedChunks++;
-        if (parentReq->completedChunks == parentReq->totalChunks) {
+
+        // Log chunk completion status
+        DPRINTF(DecompEngine, "ParentReq %p: Completed chunk %u/%u.\n",
+                parentReq, parentReq->completedChunks, totalChunks);
+
+        if (parentReq->completedChunks == totalChunks) {
             DPRINTF(DecompEngine, "ParentReq %p: All %u chunks completed for addr %#x. Original CXL Pkt: %p (size %u, data %p)\n",
-                    parentReq, parentReq->totalChunks, parentReq->pkt->getAddr(), parentReq->pkt, parentReq->pkt->getSize(), parentReq->pkt->hasData() ? parentReq->pkt->getConstPtr<void>() : nullptr);
+                    parentReq, totalChunks, parentReq->pkt->getAddr(), parentReq->pkt, parentReq->pkt->getSize(), parentReq->pkt->hasData() ? parentReq->pkt->getConstPtr<void>() : nullptr);
 
             // Data is now in parentReq->responseData. Copy it to parentReq->pkt (original CXLController packet)
             if (parentReq->pkt->hasData() && parentReq->responseData) { // Ensure original packet can hold data
                  size_t finalCopySize = parentReq->pkt->getSize(); // Assuming full size
                  std::memcpy(parentReq->pkt->getPtr<uint8_t>(), parentReq->responseData, finalCopySize);
-                 DPRINTF(DecompEngine, "ParentReq %p: Copied %zu bytes from aggregated buffer to final response packet %p.\n",
-                        parentReq, finalCopySize, parentReq->pkt);
+                 DPRINTF(DecompEngine, "ParentReq %p: Copied %u bytes from aggregated buffer to final response packet %p.\n",
+                        parentReq, (unsigned int)finalCopySize, parentReq->pkt);
             } else if (!parentReq->pkt->hasData() && parentReq->responseData && parentReq->pkt->isRead()) {
-                // This case might happen if the original packet from CXL controller didn't allocate data (e.g. if it was a ReadReq expecting data in response)
-                // We need to ensure the packet has space. If it was a ReadReq, makeResponse usually handles this.
-                // However, we are reusing the request packet.
-                // Let's check if allocate() is needed or if makeResponse() handles it.
-                // For now, assume pkt->allocate() was called by CXLController or it's a write.
-                // If it's a read, it *must* have space after being turned into a response.
+                // This case might happen if the original packet from CXL controller didn't allocate data
+                // (e.g., if it was a ReadReq expecting data in response)
                 warn("ParentReq %p: Original CXL packet %p has no data buffer, cannot copy aggregated data for read response.", parentReq, parentReq->pkt);
             }
-            delete[] parentReq->responseData;
-            parentReq->responseData = nullptr;
+
+            // Clean up the response data buffer
+            if (parentReq->responseData) {
+                delete[] parentReq->responseData;
+                parentReq->responseData = nullptr;
+            }
 
             // Make sure the command is a response and data flags are set
             if (parentReq->pkt->isRead()) {
@@ -522,7 +638,7 @@ DecompressionEngine::handleResponse(PacketPtr memRespPkt)
                         parentReq, parentReq->pkt, parentReq->pkt->cmdString(), parentReq->pkt->hasData(), parentReq->pkt->getSize());
             }
 
-
+            // Queue the parent request for decompression
             decompression_queue.push(parentReq);
             tryScheduleDecompression();
         }
@@ -654,23 +770,19 @@ DecompressionEngine::completeDecompression(DecompressionRequest* req) // req is 
     if (!responseStalled) {
         // For writes that were stalled and had their response in req->respPkt:
         // If req->respPkt is not null, it means this is a stalled write response.
-        // We should send req->respPkt, not req->pkt.
         PacketPtr pkt_to_send = req->respPkt ? req->respPkt : req->pkt;
-        if (req->respPkt) {
-            DPRINTF(DecompEngine, "DecompComplete: Sending stalled write response req->respPkt %p for req %p.\n", req->respPkt, req);
-        }
 
         bool success = cxlPort.sendTimingResp(pkt_to_send);
         if (success) {
             DPRINTF(DecompEngine, "Successfully sent final response for req %p (using pkt %p).\n", req, pkt_to_send);
+
             // req->pkt is owned by CXLController if it's the original request packet.
             // req->respPkt (if it was a memory response for a write) is now sent and can be deleted.
-            // If pkt_to_send was req->pkt, CXLController owns it.
-            // If pkt_to_send was req->respPkt, we delete it here.
             if (pkt_to_send == req->respPkt) {
-                delete req->respPkt; // This was the memRespPkt for a write
+                delete req->respPkt;
                 req->respPkt = nullptr;
             }
+
             delete req; // Delete the DecompressionRequest wrapper.
         } else {
             responseStalled = true;
