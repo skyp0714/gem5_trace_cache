@@ -3,14 +3,13 @@
 #include <fstream>
 #include <string>
 #include <sstream>
-#include <iomanip> // Include for std::setw, std::left, std::fixed, std::setprecision
+#include <iomanip>
 
 #include "base/logging.hh"
 #include "sim/core.hh"
-// #include "sim/sim_clock.hh"     // Include for SimClock::Frequency - Reverted
 #include "sim/stat_control.hh"
 #include "debug/CXLCard.hh"
-#include "sim/sim_exit.hh" // Include for registerExitCallback
+#include "sim/sim_exit.hh"
 #include "mem/packet_access.hh"
 
 namespace gem5
@@ -25,7 +24,7 @@ class TranslationEvent : public Event
   private:
     CXLController *controller;
     const std::string _name;
-    friend class CXLController;  // Make CXLController a friend
+    friend class CXLController;
 
   public:
     TranslationEvent(CXLController *ctrl, const std::string &name)
@@ -33,7 +32,7 @@ class TranslationEvent : public Event
 
     const std::string name() const override { return _name; }
 
-    void process() override;  // Don't include implementation here
+    void process() override;
 };
 
 // Implementation after CXLController is defined
