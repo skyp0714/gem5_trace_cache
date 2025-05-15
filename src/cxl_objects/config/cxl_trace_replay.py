@@ -159,7 +159,6 @@ xor_high_bit = (
     0  # Assuming no XORing for simplicity, or based on xor_low_bit = 0
 )
 
-# system.mem_ctrls = [] # REMOVE: System object does not have a 'mem_ctrls' parameter by default
 _mem_controllers = (
     []
 )  # Use a local list to keep track if needed for other Python logic

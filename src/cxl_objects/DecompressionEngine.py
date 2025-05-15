@@ -22,3 +22,10 @@ class DecompressionEngine(ClockedObject):
     )
     cache_line_size = Param.Int(64, "Cache Line size in bytes (64B)")
     num_engines = Param.Unsigned(4, "Number of parallel decompression engines")
+    chunk_send_delay_ticks = Param.Cycles(
+        1,
+        "Delay in ticks between creating subsequent chunks for a large request",
+    )
+    inter_memory_request_delay_ticks = Param.Cycles(
+        1000, "Delay in ticks between memory requests sent by the engine"
+    )

@@ -1,0 +1,9 @@
+Global frequency set at 1000000000000 ticks per second
+gem5 Simulator System.  https://www.gem5.org
+gem5 is copyrighted software; use the --copyright option for details.
+
+gem5 version 24.1.0.2
+gem5 compiled May 13 2025 19:14:57
+gem5 started May 13 2025 19:17:53
+gem5 executing on wyatt-11, pid 411052
+command line: ./build/X86/gem5.opt src/cxl_objects/config/cxl_trace_replay.py --enable-cxl-debug --enable-decomp-debug
