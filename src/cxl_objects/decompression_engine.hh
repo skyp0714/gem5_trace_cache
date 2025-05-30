@@ -261,17 +261,22 @@ class DecompressionEngine : public ClockedObject
         }
     };
 
-    // ADDED: Event for sending readiness update with delay
+    // MODIFIED: Event for sending readiness update with pre-calculated value
     class SendReadinessUpdateEvent : public Event {
       private:
         DecompressionEngine *engine;
         DecompressionRequest *parentRequest; // The parent request for which to send update
+        unsigned readyCachelines; // Pre-calculated readiness value
+        Addr blockAddr; // Block address for update
       public:
-        SendReadinessUpdateEvent(DecompressionEngine *_engine, DecompressionRequest *_parentReq)
-            : Event(Default_Pri), engine(_engine), parentRequest(_parentReq) {}
+        SendReadinessUpdateEvent(DecompressionEngine *_engine, DecompressionRequest *_parentReq,
+                               unsigned _readyCachelines, Addr _blockAddr)
+            : Event(Default_Pri), engine(_engine), parentRequest(_parentReq),
+              readyCachelines(_readyCachelines), blockAddr(_blockAddr) {}
 
         void process() override {
-            engine->sendReadinessUpdate(parentRequest);
+            // Pass the pre-calculated readiness value to sendReadinessUpdate
+            engine->sendReadinessUpdate(blockAddr, readyCachelines);
         }
 
         const char *description() const override {
@@ -280,9 +285,9 @@ class DecompressionEngine : public ClockedObject
     };
 
     /**
-     * Send readiness update to CXL controller
+     * Send readiness update to CXL controller with pre-calculated readiness value
      */
-    void sendReadinessUpdate(DecompressionRequest* parentReq);
+    void sendReadinessUpdate(Addr blockAddr, unsigned readyCachelines);
 
     /**
      * Calculate how many cachelines can be made ready based on chunks completed

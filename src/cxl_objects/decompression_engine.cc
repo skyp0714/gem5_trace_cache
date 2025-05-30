@@ -267,7 +267,7 @@ DecompressionEngine::sendNextChunk(DecompressionRequest* parentReq, unsigned chu
                  delete[] parentReq->responseData;
                  parentReq->responseData = nullptr;
                  if (parentReq->pkt->isRead()) parentReq->pkt->makeResponse(); // Ensure it's a response
-                 sendReadinessUpdate(parentReq); // Send final readiness
+
                  decompression_queue.push(parentReq);
                  tryScheduleDecompression();
              }
@@ -449,7 +449,6 @@ DecompressionEngine::CXLSidePort::recvFunctional(PacketPtr pkt)
     // This requires careful handling as memSendCandidateQueue is also used for active sends.
     // For functional access, we are checking if the data *would* be satisfied.
     // A simple iteration might be okay if modifications are not made.
-    // Create a temporary copy for iteration if modification during iteration is a concern.
     // However, trySatisfyFunctional doesn't modify the queue structure.
     // We need to iterate over a copy or be careful if trySatisfyFunctional could trigger state changes.
     // For now, let's assume simple iteration is fine for functional check.
@@ -639,10 +638,21 @@ DecompressionEngine::handleResponse(PacketPtr memRespPkt)
         Tick decompTime = (block_size * 150000) / 4096; // Scaled latency
         decompTime = std::max(decompTime, Tick(10000)); // Minimum latency
 
-        SendReadinessUpdateEvent* event = new SendReadinessUpdateEvent(this, parentReq);
+        // Calculate readiness NOW at scheduling time, not when the event fires
+        unsigned currentReadyCachelines = calculateReadyCachelines(parentReq);
+
+        // Get block address for readiness update
+        Addr block_addr_for_update = parentReq->pkt->getAddr() & ~(block_size - 1);
+
+        // Create event with pre-calculated readiness value
+        SendReadinessUpdateEvent* event = new SendReadinessUpdateEvent(
+            this, parentReq, currentReadyCachelines, block_addr_for_update);
+
         schedule(event, curTick() + decompTime);
-        DPRINTF(DecompEngine, "ParentReq %p: Scheduled SendReadinessUpdateEvent for tick %llu (delay %llu ps).\n",
-                parentReq, curTick() + decompTime, decompTime);
+
+        DPRINTF(DecompEngine, "ParentReq %p: Scheduled readiness update with %u/%u cachelines ready for tick %llu (delay %llu ps).\n",
+                parentReq, currentReadyCachelines, (block_size / cache_line_size),
+                curTick() + decompTime, decompTime);
     }
 
 
@@ -659,7 +669,6 @@ DecompressionEngine::handleResponse(PacketPtr memRespPkt)
             DPRINTF(DecompEngine, "ParentReq %p: responseData (%p) was populated, will be deleted. Data is not copied to parent packet %p.\n",
                     parentReq, parentReq->responseData, parentReq->pkt);
         }
-
 
         // Clean up the response data buffer
         if (parentReq->responseData) {
@@ -685,8 +694,11 @@ DecompressionEngine::handleResponse(PacketPtr memRespPkt)
                 }
             }
         }
-        // Final readiness update was already sent by the last chunk.
-        // Or send one more time to be sure it reflects 100%
+
+        // 아래 코드를 제거: 모든 청크가 완료된 후 전체 readiness 업데이트 전송하지 않음
+        // unsigned totalCachelines = block_size / cache_line_size;
+        // Addr block_addr_for_update = parentReq->pkt->getAddr() & ~(block_size - 1);
+        // sendReadinessUpdate(block_addr_for_update, totalCachelines);
 
         // Queue the parent request for decompression
         decompression_queue.push(parentReq);
@@ -832,20 +844,13 @@ DecompressionEngine::calculateReadyCachelines(DecompressionRequest* parentReq)
 // Send readiness update to CXL controller
 // This function is now called by SendReadinessUpdateEvent after a delay.
 void
-DecompressionEngine::sendReadinessUpdate(DecompressionRequest* parentReq)
+DecompressionEngine::sendReadinessUpdate(Addr block_addr_for_update, unsigned num_ready_cachelines)
 {
-    // Calculate how many cachelines are ready
-    unsigned num_ready_cachelines = calculateReadyCachelines(parentReq);
-
-    // Create a readiness update packet
-    // Align to block_size, as CXL controller expects updates per block
-    Addr block_addr_for_update = parentReq->pkt->getAddr() & ~(block_size - 1);
-
-    DPRINTF(DecompEngine, "Sending readiness update (delayed): block addr %#x, %u/%u cachelines ready.\n",
+    DPRINTF(DecompEngine, "Sending readiness update with pre-calculated value: block addr %#x, %u/%u cachelines ready.\n",
             block_addr_for_update, num_ready_cachelines, (unsigned int)(block_size / cache_line_size));
 
     // Create a new request for the update. Size is sizeof(unsigned) for the readiness count.
-    auto update_mem_req = std::make_shared<Request>(block_addr_for_update, sizeof(unsigned), 0, parentReq->pkt->req->requestorId());
+    auto update_mem_req = std::make_shared<Request>(block_addr_for_update, sizeof(unsigned), 0, 0);
     // This packet is a "message" to the CXL controller, not a real memory read from its perspective.
     // It's a ReadResp carrying data.
     PacketPtr update_pkt = new Packet(update_mem_req, MemCmd::ReadReq); // Start as ReadReq

@@ -109,8 +109,11 @@ UnifiedBlockOperation::processCacheResponse(PacketPtr respPkt, bool is_hit) {
         for (CXLRequest* cxl_req : pending_cxl_requests) {
             if (!cxl_req->completed) {
                 cxl_req->cacheHit = true;
-                Tick completionTick = curTick(); // MODIFIED: Immediate completion for L1 hit
-                 if (!cxl_req->completionEvent) {
+                // MODIFIED: Ensure minimum 50ns latency from arrival time
+                Tick minCompletionTick = cxl_req->arrivalTick + 50000; // 50ns minimum
+                Tick completionTick = std::max(curTick(), minCompletionTick);
+
+                if (!cxl_req->completionEvent) {
                     cxl_req->completionEvent = new RequestCompletionEvent(controller, cxl_req);
                     DPRINTF(CXLCard, "UBO for 0x%lx: Scheduling HIT completion for CXLReq %p (addr 0x%lx) at %lu\n",
                             blockAddr, cxl_req, cxl_req->addr, completionTick);
