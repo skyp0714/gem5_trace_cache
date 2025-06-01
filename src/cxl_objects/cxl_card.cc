@@ -132,6 +132,33 @@ UnifiedBlockOperation::processCacheResponse(PacketPtr respPkt, bool is_hit) {
     } else { // Cache MISS
         DPRINTF(CXLCard, "UBO for 0x%lx: Cache MISS. Pending CXLReqs: %lu.\n",
                 blockAddr, pending_cxl_requests.size());
+
+        if (!translation_request_sent) {
+            // Now send the translation request since we got a cache miss
+            translation_request_sent = true;
+
+            // Create a temporary CXLRequest to use with doSendAddressTranslationRequest
+            CXLRequest tempTransReq;
+            tempTransReq.addr = blockAddr;
+            tempTransReq.isRead = !pending_cxl_requests.empty() ?
+                                  pending_cxl_requests.front()->isRead : true;
+
+            DPRINTF(CXLCard, "UBO for 0x%lx: Sending translation request after cache miss\n", blockAddr);
+
+            // The doSendAddressTranslationRequest function will handle timing intervals and stalled port conditions
+            bool success = controller->doSendAddressTranslationRequest(tempTransReq);
+
+            if (success) {
+                DPRINTF(CXLCard, "UBO for 0x%lx: Successfully sent translation request after cache miss\n", blockAddr);
+                // Packet ownership transferred to port
+                tempTransReq.transPkt = nullptr;
+            } else {
+                DPRINTF(CXLCard, "UBO for 0x%lx: Translation request queued for later sending\n", blockAddr);
+                // doSendAddressTranslationRequest already handled timing and stall conditions
+            }
+        }
+
+        // Continue with existing cache miss logic
         if (translation_response_received) {
             DPRINTF(CXLCard, "UBO for 0x%lx: Translation already received. Transitioning to BlockTracker.\n", blockAddr);
             // UBO will be deleted within transitionToBlockTracker
@@ -730,7 +757,7 @@ void
 CXLController::scheduleNextTranslation()
 {
     // Schedule next translation after delay
-    Tick nextTick = curTick() + 1000; // 1000 ticks delay
+    Tick nextTick = curTick() + 5000; // 5000 ticks delay
 
     DPRINTF(CXLCard, "Scheduling next translation at tick %lu (current: %lu)\n",
             nextTick, curTick());
@@ -771,7 +798,7 @@ CXLController::sendAddressTranslationRequest(CXLRequest &req)
 
     // If this is the first request or we've waited enough time
     if (translationQueue.size() == 1 ||
-        (curTick() - lastTranslationTick) >= 1000)
+        (curTick() - lastTranslationTick) >= 5000)
     {
         scheduleNextTranslation();
     }
@@ -783,6 +810,40 @@ CXLController::sendAddressTranslationRequest(CXLRequest &req)
 bool
 CXLController::doSendAddressTranslationRequest(CXLRequest &req)
 {
+    // Check if enough time has passed since the last translation request
+    if ((curTick() - lastTranslationTick) < 5000) {
+        // Not enough time has passed, we should delay this request
+        DPRINTF(CXLCard, "Translation request for addr 0x%lx delayed due to timing interval (last: %lu, current: %lu)\n",
+                req.addr, lastTranslationTick, curTick());
+
+        // Create request and packet - explicitly use 8 bytes (64 bits) for translation lookup
+        Addr blockAddr = req.addr & ~(blockSize - 1);
+        Addr translationAddr = 0x800000000 + blockAddr;
+        auto transReq = std::make_shared<Request>(translationAddr, 8, 0, 0);
+        PacketPtr pkt = new Packet(transReq, MemCmd::ReadReq);
+        pkt->allocate();
+
+        // Store in request
+        if (req.transPkt) {
+            warn("Req %p already has a transPkt %p assigned when creating new transPkt %p", &req, req.transPkt, pkt);
+            delete req.transPkt;
+        }
+        req.transPkt = pkt;
+        req.translationSent = true;
+
+        // Add to retry queue to be sent later
+        translationRetryQueue.push(pkt);
+
+        // Schedule the translation event if not already scheduled
+        Tick nextTick = lastTranslationTick + 5000;
+        if (!translationEvent->scheduled()) {
+            DPRINTF(CXLCard, "Scheduling translation event at %lu due to timing interval\n", nextTick);
+            schedule(translationEvent, nextTick);
+        }
+
+        return false;
+    }
+
     // Get the original address
     Addr origAddr = req.addr;
 
@@ -810,6 +871,13 @@ CXLController::doSendAddressTranslationRequest(CXLRequest &req)
     req.transPkt = pkt;
     req.translationSent = true;
 
+    // If translation port is stalled, add to retry queue directly without sending
+    if (translationPortStalled) {
+        DPRINTF(CXLCard, "Translation port stalled, adding transPkt %p to retry queue for Req %p without sending\n", pkt, &req);
+        translationRetryQueue.push(pkt);
+        return false;
+    }
+
     // Update the last translation time
     lastTranslationTick = curTick();
 
@@ -818,10 +886,59 @@ CXLController::doSendAddressTranslationRequest(CXLRequest &req)
     if (!success) {
         DPRINTF(CXLCard, "Translation port busy, adding transPkt %p to retry queue for Req %p\n", pkt, &req);
         translationRetryQueue.push(pkt);
+        // Mark translation port as stalled
+        translationPortStalled = true;
         return false;
     }
 
     return success;
+}
+
+// Handle translation retries
+void
+CXLController::trySendTranslationRetries()
+{
+    // Try to send packets from the translation retry queue
+    while (!translationRetryQueue.empty()) {
+        PacketPtr pkt = translationRetryQueue.front();
+
+        // Safety check for null packet
+        if (!pkt) {
+            warn("Null packet in translation retry queue!");
+            translationRetryQueue.pop();
+            continue;
+        }
+
+        // Ensure we respect the tick interval between translation requests
+        if ((curTick() - lastTranslationTick) < 5000) {
+            // Schedule next attempt after appropriate delay
+            Tick nextTick = lastTranslationTick + 5000;
+            DPRINTF(CXLCard, "Delaying translation retry for packet for addr 0x%lx until tick %lu (current: %lu)\n",
+                   pkt->getAddr(), nextTick, curTick());
+            if (!translationEvent->scheduled()) {
+                schedule(translationEvent, nextTick);
+            }
+            return;
+        }
+
+        DPRINTF(CXLCard, "Attempting to retry translation packet for addr 0x%lx\n",
+               pkt->getAddr());
+
+        // Update last translation time
+        lastTranslationTick = curTick();
+
+        if (!translationPort.sendTimingReq(pkt)) {
+            // Still blocked, mark as stalled and will retry later
+            DPRINTF(CXLCard, "Retry sending translation packet for addr 0x%lx still blocked\n",
+                   pkt->getAddr());
+            translationPortStalled = true;
+            return;
+        }
+
+        DPRINTF(CXLCard, "Successfully resent translation packet for addr 0x%lx\n",
+               pkt->getAddr());
+        translationRetryQueue.pop();
+    }
 }
 
 void
@@ -833,6 +950,8 @@ CXLController::CXLRequestPort::recvReqRetry()
     } else if (name() == controller->memPort.name()) {
         controller->trySendRetries(false); // Retry memory queue
     } else if (name() == controller->translationPort.name()) {
+        // Clear stalled flag when we get a retry from the translation port
+        controller->translationPortStalled = false;
         controller->trySendTranslationRetries(); // Retry translation queue
     } else {
         panic("Unknown port received retry: %s", name());
@@ -870,37 +989,6 @@ CXLController::trySendRetries(bool toCache)
         DPRINTF(CXLCard, "Successfully resent packet for addr 0x%lx to %s\n",
                pkt->getAddr(), toCache ? "cache" : "memory");
         retryQueue.pop();
-    }
-}
-
-// Handle translation retries
-void
-CXLController::trySendTranslationRetries()
-{
-    // Try to send packets from the translation retry queue
-    while (!translationRetryQueue.empty()) {
-        PacketPtr pkt = translationRetryQueue.front();
-
-        // Safety check for null packet
-        if (!pkt) {
-            warn("Null packet in translation retry queue!");
-            translationRetryQueue.pop();
-            continue;
-        }
-
-        DPRINTF(CXLCard, "Attempting to retry translation packet for addr 0x%lx\n",
-               pkt->getAddr());
-
-        if (!translationPort.sendTimingReq(pkt)) {
-            // Still blocked, will retry later
-            DPRINTF(CXLCard, "Retry sending translation packet for addr 0x%lx still blocked\n",
-                   pkt->getAddr());
-            return;
-        }
-
-        DPRINTF(CXLCard, "Successfully resent translation packet for addr 0x%lx\n",
-               pkt->getAddr());
-        translationRetryQueue.pop();
     }
 }
 
@@ -1075,35 +1163,15 @@ CXLController::processRequest(const CXLRequest &reqEvent)
             cache_pkt_for_ubo->allocate();
             if (!trackedReq->isRead) { std::memset(cache_pkt_for_ubo->getPtr<uint8_t>(), 0xA5, blockSize); }
 
-            // new_ubo->cachePkt = cache_pkt_for_ubo; // UBO no longer stores this if send is successful
             new_ubo->cache_request_sent = true;
             DPRINTF(CXLCard, "UBO for 0x%lx: Sending cache request (pkt %p).\n", blockAddr, cache_pkt_for_ubo);
             if (!cachePort.sendTimingReq(cache_pkt_for_ubo)) {
                 DPRINTF(CXLCard, "UBO for 0x%lx: Cache port busy for pkt %p. Adding to retry queue.\n", blockAddr, cache_pkt_for_ubo);
                 cacheRetryQueue.push(cache_pkt_for_ubo);
-                // new_ubo->cachePkt = nullptr; // Already null or not set if send fails and goes to retry
-            } else {
-                // Successful send, UBO gives up ownership of cache_pkt_for_ubo
-                // new_ubo->cachePkt remains nullptr (or was never set to cache_pkt_for_ubo)
             }
 
-            // Send translation request
-            Addr lookupAddr = 0x800000000 + blockAddr; // Example lookup address
-            auto trans_mem_req = std::make_shared<Request>(lookupAddr, 8, 0, 0);
-            PacketPtr trans_pkt_for_ubo = new Packet(trans_mem_req, MemCmd::ReadReq);
-            trans_pkt_for_ubo->allocate();
-
-            // new_ubo->transPkt = trans_pkt_for_ubo; // UBO no longer stores this if send is successful
-            new_ubo->translation_request_sent = true;
-            DPRINTF(CXLCard, "UBO for 0x%lx: Sending translation request (pkt %p) for lookup 0x%lx.\n", blockAddr, trans_pkt_for_ubo, lookupAddr);
-            if (!translationPort.sendTimingReq(trans_pkt_for_ubo)) {
-                DPRINTF(CXLCard, "UBO for 0x%lx: Translation port busy for pkt %p. Adding to retry queue.\n", blockAddr, trans_pkt_for_ubo);
-                translationRetryQueue.push(trans_pkt_for_ubo);
-                // new_ubo->transPkt = nullptr; // Already null or not set
-            } else {
-                // Successful send, UBO gives up ownership of trans_pkt_for_ubo
-                // new_ubo->transPkt remains nullptr
-            }
+            // Translation request will be sent only after cache miss
+            // No longer initiating translation request here
         }
     }
 }
@@ -1145,7 +1213,7 @@ CXLController::transitionToBlockTracker(UnifiedBlockOperation* ubo, Addr transla
         if (representative_req->isRead) {
             // Check if translation is complete for the tracker.
             // createBlockTracker sets it if translated_block_addr is non-zero.
-            if (tracker->isTranslationComplete() && !tracker->isMemoryRequestInitiated()) { // Use new flag
+            if (tracker->isTranslationComplete() && !tracker->isMemoryRequestInitiated()) { // Use new method
                  DPRINTF(CXLCard, "UBO->BT transition for 0x%lx: Translation complete for BT (transAddr 0x%lx), sending to memory.\n",
                     tracker->getBlockAddr(), tracker->getTranslatedBlockAddr());
                  // Ensure the representative CXLRequest also reflects this translation.

@@ -96,7 +96,7 @@ def main():
         "-l",
         "--length",
         type=int,
-        default=10000,
+        default=2000,
         help="Total number of requests to generate",
     )
     parser.add_argument(

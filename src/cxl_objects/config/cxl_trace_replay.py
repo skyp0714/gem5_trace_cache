@@ -15,7 +15,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     "--trace-file",
     type=str,
-    default="/home/hnpark2/traceCache/gem5/src/cxl_objects/trace/simple_input.txt",
+    default="/home/hnpark2/traceCache/gem5/src/cxl_objects/trace/generated_trace.txt",
     help="Path to the trace file",
 )
 parser.add_argument(

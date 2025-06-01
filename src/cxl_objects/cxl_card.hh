@@ -384,6 +384,9 @@ class CXLController : public SimObject
     TranslationEvent* translationEvent;
     Tick lastTranslationTick;
 
+    // Flag to track if translation port is stalled
+    bool translationPortStalled = false;
+
     // Minimum completion latency (50ns)
     const Tick minCompletionLatency;
 
