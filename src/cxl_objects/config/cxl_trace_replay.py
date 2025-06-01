@@ -15,7 +15,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     "--trace-file",
     type=str,
-    default="/home/hnpark2/traceCache/gem5/src/cxl_objects/trace/large_trace_r_only.txt",
+    default="/home/hnpark2/traceCache/gem5/src/cxl_objects/trace/simple_input.txt",
     help="Path to the trace file",
 )
 parser.add_argument(
@@ -111,10 +111,16 @@ system.dvfs_handler.enable = False
 
 # Create a simple memory system with just what we need
 system.mem_mode = "timing"
-system.mem_ranges = [AddrRange("64GB")]
 
-# Create the memory bus
-system.membus = SystemXBar()
+# Define two separate memory ranges
+system.mem_ranges = [
+    AddrRange("0GB", "32GB"),  # For decompression (0-32GB)
+    AddrRange("32GB", "64GB"),  # For translation (32-64GB)
+]
+
+# Create two separate memory buses
+system.decompbus = SystemXBar(max_routing_table_size=4096)  # For decompression
+system.transbus = SystemXBar(max_routing_table_size=4096)  # For translation
 
 # Create a simple cache
 system.l1cache = Cache(
@@ -123,20 +129,16 @@ system.l1cache = Cache(
     tag_latency=50,
     data_latency=50,
     response_latency=50,
-    mshrs=4,
+    mshrs=16,
     tgts_per_mshr=20,
-    cache_line_size=args.compression_block_size,  # Pass integer directly
+    write_buffers=16,
+    cache_line_size=args.compression_block_size,
 )
 
-# Set cache line size. Note: args.cacheline_size (default 64) is defined.
-# To meet DRAM interleaving requirements (interleaving granularity must be >= cache line size),
-# system.cache_line_size should be consistent with the intlv_granularity (64B).
-# We will use args.cacheline_size (default 64B) for the system's cache line size.
-system.cache_line_size = (
-    args.cacheline_size
-)  # Set system-wide cache line size to args.cacheline_size (e.g., 64)
+# Set system cache line size
+system.cache_line_size = args.cacheline_size
 
-# Create the CXL controller with updated cache line size and output file
+# Create the CXL controller
 system.cxl_controller = CXLController(
     trace_file=args.trace_file,
     output_file=args.output_file,
@@ -147,52 +149,90 @@ system.cxl_controller = CXLController(
 # Connect the CXL controller to cache
 system.cxl_controller.cache_port = system.l1cache.cpu_side
 
-# Configure memory controllers for 4 channels with 64B interleaving
-num_mem_channels = 4
-intlv_granularity = 64  # Bytes
+# Configure 4 memory controllers for decompression (0-32GB range)
+decopm_mem_channels = 4
+decomp_intlv_granularity = 64  # 64B interleaving granularity (explicit)
 
-# Calculate interleaving parameters
-intlv_bits = int(math.log2(num_mem_channels))
-intlv_low_bit = int(math.log2(intlv_granularity))
-# xor_low_bit = 0 by default in MemConfig.py, so xorHighBit will be 0
-xor_high_bit = (
-    0  # Assuming no XORing for simplicity, or based on xor_low_bit = 0
-)
+# Calculate interleaving parameters for decompression
+decomp_intlv_bits = int(math.log2(decopm_mem_channels))
+decomp_intlv_low_bit = int(math.log2(decomp_intlv_granularity))
+decomp_xor_high_bit = 0  # No XOR
 
-_mem_controllers = (
-    []
-)  # Use a local list to keep track if needed for other Python logic
-for i in range(num_mem_channels):
+# Create decompression memory controllers with lower latency
+for i in range(decopm_mem_channels):
     mem_ctrl = MemCtrl()
-    mem_ctrl.dram = DDR4_2400_8x8()  # Or any other DRAM type
-    # Configure address range for interleaving
+    mem_ctrl.dram = DDR4_2400_16x4()  # Higher bandwidth memory
+    # Configure DRAM timing for lower latency
+    mem_ctrl.dram.tCK = "0.5ns"  # 2GHz clock
+    mem_ctrl.dram.tBURST = "2.5ns"  # Reduced burst time
+    mem_ctrl.dram.tRCD = "10ns"  # Lower RCD
+    mem_ctrl.dram.tCL = "10ns"  # Lower CAS latency
+    mem_ctrl.dram.tRP = "10ns"  # Lower row precharge time
+    mem_ctrl.dram.tRAS = "24ns"  # Lower row active time
+
+    # Verify interleaving is correctly set to 64B
     mem_ctrl.dram.range = AddrRange(
         system.mem_ranges[0].start,
         size=system.mem_ranges[0].size(),
-        intlvHighBit=intlv_low_bit + intlv_bits - 1,
-        xorHighBit=xor_high_bit,
-        intlvBits=intlv_bits,
+        intlvHighBit=decomp_intlv_low_bit + decomp_intlv_bits - 1,
+        xorHighBit=decomp_xor_high_bit,
+        intlvBits=decomp_intlv_bits,
         intlvMatch=i,
     )
-    mem_ctrl.port = system.membus.mem_side_ports
-    # Assign the memory controller to the system object with a unique name
-    setattr(system, f"mem_ctrl_{i}", mem_ctrl)
-    _mem_controllers.append(mem_ctrl)  # Keep in a local list if necessary
+    mem_ctrl.port = system.decompbus.mem_side_ports
+    setattr(system, f"decomp_mem_ctrl_{i}", mem_ctrl)
 
-# Connect the translation port directly to the main membus
-system.cxl_controller.translation_port = system.membus.cpu_side_ports
+# Configure 2 memory controllers for translation (32-64GB range)
+trans_mem_channels = 4
+trans_intlv_granularity = 64  # 64B interleaving granularity (explicit)
 
-# Make sure decompression engine uses the same block size and num_engines
+# Calculate interleaving parameters for translation
+trans_intlv_bits = int(math.log2(trans_mem_channels))
+trans_intlv_low_bit = int(math.log2(trans_intlv_granularity))
+trans_xor_high_bit = 0  # No XOR
+
+# Create translation memory controllers with lower latency
+for i in range(trans_mem_channels):
+    mem_ctrl = MemCtrl()
+    mem_ctrl.dram = DDR4_2400_16x4()  # Higher bandwidth memory
+    # Configure DRAM timing for lower latency
+    mem_ctrl.dram.tCK = "0.5ns"  # 2GHz clock
+    mem_ctrl.dram.tBURST = "2.5ns"  # Reduced burst time
+    mem_ctrl.dram.tRCD = "10ns"  # Lower RCD
+    mem_ctrl.dram.tCL = "10ns"  # Lower CAS latency
+    mem_ctrl.dram.tRP = "10ns"  # Lower row precharge time
+    mem_ctrl.dram.tRAS = "24ns"  # Lower row active time
+
+    # Verify interleaving is correctly set to 64B
+    mem_ctrl.dram.range = AddrRange(
+        system.mem_ranges[1].start,
+        size=system.mem_ranges[1].size(),
+        intlvHighBit=trans_intlv_low_bit + trans_intlv_bits - 1,
+        xorHighBit=trans_xor_high_bit,
+        intlvBits=trans_intlv_bits,
+        intlvMatch=i,
+    )
+    mem_ctrl.port = system.transbus.mem_side_ports
+    setattr(system, f"trans_mem_ctrl_{i}", mem_ctrl)
+
+# Connect the translation port to translation bus
+system.cxl_controller.translation_port = system.transbus.cpu_side_ports
+
+# Configure decompression engine with reduced delay
 system.decompression_engine = DecompressionEngine(
     block_size=args.compression_block_size,
     cache_line_size=args.cacheline_size,
-    num_engines=4,  # Set the number of engines (can be parameterized later if needed)
+    num_engines=4,
+    chunk_send_delay_ticks=1,  # Reduced from 1000
+    inter_memory_request_delay_ticks=10000,  # Reduced from 5000
 )
-system.cxl_controller.mem_port = system.decompression_engine.cxl_side_port
-system.decompression_engine.mem_side_port = system.membus.cpu_side_ports
 
-# Set up the system port
-system.system_port = system.membus.cpu_side_ports
+# Connect decompression engine between CXL controller and decompression bus
+system.cxl_controller.mem_port = system.decompression_engine.cxl_side_port
+system.decompression_engine.mem_side_port = system.decompbus.cpu_side_ports
+
+# Connect system port to translation bus (for system access)
+system.system_port = system.transbus.cpu_side_ports
 
 # Set the system as the child of root
 root.system = system

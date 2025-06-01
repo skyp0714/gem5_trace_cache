@@ -241,7 +241,7 @@ CXLController::CXLRequestPort::recvTimingResp(PacketPtr pkt)
         Addr translation_lookup_addr = pkt->getAddr();
         // Derive original block address using the simple mapping rule.
         // This IS the address we consider "translated" according to the simple mapping.
-        Addr original_block_addr = (translation_lookup_addr - 0x40000000) & ~(controller->blockSize - 1);
+        Addr original_block_addr = (translation_lookup_addr - 0x800000000) & ~(controller->blockSize - 1);
 
         DPRINTF(CXLCard, "TranslationPort: Received translation response for lookup_addr 0x%lx. Derived original_block_addr (used as translated_addr): 0x%lx. Pkt %p\n",
                 translation_lookup_addr, original_block_addr, pkt);
@@ -789,9 +789,9 @@ CXLController::doSendAddressTranslationRequest(CXLRequest &req)
     // Get the block address (aligned to cache line size)
     Addr blockAddr = origAddr & ~(blockSize - 1);
 
-    // Translation table is in the second half of memory (0x40000000 - 0x80000000)
+    // Translation table is in the second half of memory (0x800000000 - 0x80000000)
     // Calculate a lookup address in the translation table based on the block address
-    Addr translationAddr = 0x40000000 + blockAddr;
+    Addr translationAddr = 0x800000000 + blockAddr;
 
     DPRINTF(CXLCard, "Translation lookup: original addr 0x%lx (block addr 0x%lx) → table lookup addr 0x%lx (Req: %p)\n",
             origAddr, blockAddr, translationAddr, &req);
@@ -1088,7 +1088,7 @@ CXLController::processRequest(const CXLRequest &reqEvent)
             }
 
             // Send translation request
-            Addr lookupAddr = 0x40000000 + blockAddr; // Example lookup address
+            Addr lookupAddr = 0x800000000 + blockAddr; // Example lookup address
             auto trans_mem_req = std::make_shared<Request>(lookupAddr, 8, 0, 0);
             PacketPtr trans_pkt_for_ubo = new Packet(trans_mem_req, MemCmd::ReadReq);
             trans_pkt_for_ubo->allocate();

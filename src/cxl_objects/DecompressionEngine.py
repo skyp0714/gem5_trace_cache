@@ -27,5 +27,5 @@ class DecompressionEngine(ClockedObject):
         "Delay in ticks between creating subsequent chunks for a large request",
     )
     inter_memory_request_delay_ticks = Param.Cycles(
-        1000, "Delay in ticks between memory requests sent by the engine"
+        5000, "Delay in ticks between memory requests sent by the engine"
     )

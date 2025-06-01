@@ -53,6 +53,7 @@
 #include "debug/AddrRanges.hh"
 #include "debug/Drain.hh"
 #include "debug/XBar.hh"
+#include "debug/CXLCard.hh"
 
 namespace gem5
 {
@@ -196,6 +197,11 @@ BaseXBar::Layer<SrcType, DstType>::tryTiming(SrcType* src_port)
     // for a retry from the peer
     if (state == BUSY || waitingForPeer != NULL) {
         // the port should not be waiting already
+        DPRINTF(CXLCard, "XBar %s layer %s busy: state=%s waitingForPeer=%s\n",
+                xbar.name(), _name,
+                (state == BUSY) ? "BUSY" : "IDLE",
+                (waitingForPeer != NULL) ? waitingForPeer->name() : "none");
+
         assert(std::find(waitingForLayer.begin(), waitingForLayer.end(),
                          src_port) == waitingForLayer.end());
 
