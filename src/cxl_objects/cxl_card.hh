@@ -322,7 +322,7 @@ class CXLController : public SimObject
     std::queue<PacketPtr> memRetryQueue;
     std::queue<PacketPtr> translationRetryQueue;
 
-    // Map of block trackers by block address (used for cache misses)
+    // Map of block trackers to block address (used for cache misses)
     std::unordered_map<Addr, BlockTracker*> blockTrackers;
 
     // NEW: Map for active unified block operations
@@ -390,10 +390,20 @@ class CXLController : public SimObject
     // Minimum completion latency (50ns)
     const Tick minCompletionLatency;
 
+    // Batch loading related variables
+    std::ifstream traceFileStream;     // Persistent file stream
+    Tick lastBatchTick = 0;            // Tick of last event in current batch
+    bool moreTracesExist = true;       // Flag to indicate if more traces exist
+    unsigned batchSize = 10000;        // Number of traces to load per batch
+    class BatchLoaderEvent* batchLoaderEvent = nullptr; // Event to trigger next batch loading
+
   public:
     CXLController(const CXLControllerParams &p);
     ~CXLController();
     void startup() override;
+
+    // Batch loading method
+    void loadNextTraceBatch();
 
     // Process a request
     void processRequest(const CXLRequest &reqEvent);

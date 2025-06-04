@@ -17,6 +17,7 @@ namespace gem5
 
 // Forward declaration
 class TranslationEvent;
+class BatchLoaderEvent; // Add this new forward declaration
 
 // Event to schedule translation requests
 class TranslationEvent : public Event
@@ -28,6 +29,22 @@ class TranslationEvent : public Event
 
   public:
     TranslationEvent(CXLController *ctrl, const std::string &name)
+        : controller(ctrl), _name(name) {}
+
+    const std::string name() const override { return _name; }
+
+    void process() override;
+};
+
+// New event class for batch loading traces
+class BatchLoaderEvent : public Event
+{
+  private:
+    CXLController *controller;
+    const std::string _name;
+
+  public:
+    BatchLoaderEvent(CXLController *ctrl, const std::string &name)
         : controller(ctrl), _name(name) {}
 
     const std::string name() const override { return _name; }
@@ -61,6 +78,13 @@ void
 TranslationEvent::process()
 {
     controller->processNextTranslation();
+}
+
+// BatchLoaderEvent implementation
+void
+BatchLoaderEvent::process()
+{
+    controller->loadNextTraceBatch();
 }
 
 // UnifiedBlockOperation Destructor
@@ -378,8 +402,8 @@ CXLController::CXLRequestPort::recvTimingResp(PacketPtr pkt)
                 cxl_req_associated_with_mem_pkt = candidate_req;
                 original_request_addr_for_mem_pkt = candidate_req->addr;
             } else if (candidate_req) {
-                 warn("CXLCard: Packet %p from DecompEngine for translated_addr 0x%lx matches outstanding entry, but memPkt pointer %p does not match CXLReq %p's memPkt %p.",
-                      pkt, translated_block_addr_key, pkt, candidate_req, candidate_req->memPkt);
+                //  warn("CXLCard: Packet %p from DecompEngine for translated_addr 0x%lx matches outstanding entry, but memPkt pointer %p does not match CXLReq %p's memPkt %p.",
+                //       pkt, translated_block_addr_key, pkt, candidate_req, candidate_req->memPkt);
             }
         }
 
@@ -593,6 +617,9 @@ CXLController::CXLController(const CXLControllerParams &p)
 
     // Create translation event
     translationEvent = new TranslationEvent(this, name() + ".translation_event");
+
+    // Create batch loader event
+    batchLoaderEvent = new BatchLoaderEvent(this, name() + ".batch_loader_event");
 }
 
 
@@ -1443,13 +1470,32 @@ CXLController::startup()
 void
 CXLController::loadTrace()
 {
-    std::ifstream traceFile(traceFilePath);
-    if (!traceFile.is_open()) {
+    // Open the trace file and keep it open for future batches
+    traceFileStream.open(traceFilePath);
+    if (!traceFileStream.is_open()) {
         fatal("Could not open CXL trace file: %s", traceFilePath);
     }
 
+    DPRINTF(CXLCard, "Trace file opened: %s. Starting batch loading.\n", traceFilePath.c_str());
+
+    // Load the first batch
+    loadNextTraceBatch();
+}
+
+void
+CXLController::loadNextTraceBatch()
+{
+    if (!traceFileStream.is_open() || !moreTracesExist) {
+        return;
+    }
+
+    DPRINTF(CXLCard, "Loading next batch of traces (up to %u lines)\n", batchSize);
+
+    unsigned batchCount = 0;
     std::string line;
-    while (std::getline(traceFile, line)) {
+    Tick latestTick = lastBatchTick;
+
+    while (batchCount < batchSize && std::getline(traceFileStream, line)) {
         // Skip comment lines starting with //
         if (line.size() >= 2 && line[0] == '/' && line[1] == '/') {
             continue;
@@ -1477,32 +1523,52 @@ CXLController::loadTrace()
         req.time_us = time_us;
         req.comprRatio = comprRatio;
 
+        // Convert to ticks for tracking
+        Tick tick_time = time_us * gem5::sim_clock::as_float::us;
+        latestTick = std::max(latestTick, tick_time);
+
         requests.push_back(req);
+
+        // Create and schedule event
+        static int eventId = 0;
+        auto event = new CXLRequestEvent(req, csprintf("%s-event-%d", name(), eventId++), this);
+        schedule(event, tick_time);
+
+        DPRINTF(CXLCard, "Scheduled CXL request event at %lu ticks (%.3f us)\n", tick_time, time_us);
+
+        batchCount++;
     }
 
-    // Update the total number of requests
+    // Update total requests count
     totalRequests = requests.size();
 
-    DPRINTF(CXLCard, "Loaded %u CXL requests from trace file: %s\n",
-           (unsigned int)requests.size(), traceFilePath.c_str()); // Cast to unsigned int for %u
+    // Check if we've reached the end of the file
+    if (batchCount < batchSize) {
+        moreTracesExist = false;
+        DPRINTF(CXLCard, "Reached end of trace file. Total traces loaded: %u\n", totalRequests);
+    } else {
+        // Update last batch tick for next batch scheduling
+        lastBatchTick = latestTick;
+
+        // Schedule next batch loading
+        DPRINTF(CXLCard, "Scheduling next batch load at tick %lu\n", lastBatchTick);
+        if (batchLoaderEvent->scheduled()) {
+            reschedule(batchLoaderEvent, lastBatchTick);
+        } else {
+            schedule(batchLoaderEvent, lastBatchTick);
+        }
+    }
+
+    DPRINTF(CXLCard, "Loaded %u traces in this batch. Total loaded so far: %u\n",
+            batchCount, totalRequests);
 }
 
+// Update scheduleEvents to be a minimal implementation since batch loading handles scheduling
 void
 CXLController::scheduleEvents()
 {
-    int eventId = 0;
-    for (auto& req : requests) {
-        // Create and schedule event
-        auto event = new CXLRequestEvent(req,
-            csprintf("%s-event-%d", name(), eventId++), this);
-
-        // Convert microseconds to ticks (1 us = 1000 ps)
-        // This assumes the simulation tick is 1 ps
-        Tick tick_time = req.time_us * gem5::sim_clock::as_float::us;
-
-        schedule(event, tick_time);
-        DPRINTF(CXLCard, "Scheduled CXL request event at %lu ticks\n", tick_time);
-    }
+    // Now handled by batch loading
+    DPRINTF(CXLCard, "Using batch-based scheduling\n");
 }
 
 Port &
