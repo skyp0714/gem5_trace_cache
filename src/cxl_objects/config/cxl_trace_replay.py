@@ -224,7 +224,7 @@ system.decompression_engine = DecompressionEngine(
     cache_line_size=args.cacheline_size,
     num_engines=4,
     chunk_send_delay_ticks=1,  # Reduced from 1000
-    inter_memory_request_delay_ticks=10000,  # Reduced from 5000
+    inter_memory_request_delay_ticks=5000,  # Reduced from 5000
 )
 
 # Connect decompression engine between CXL controller and decompression bus

@@ -1,9 +1,1455 @@
 Global frequency set at 1000000000000 ticks per second
+      0: system.cxl_controller: Registered dumpStats exit callback.
+      0: system.cxl_controller: Loaded 10 CXL requests from trace file: /home/hnpark2/traceCache/gem5/src/cxl_objects/trace/generated_trace.txt
+      0: system.cxl_controller: Scheduled CXL request event at 61000 ticks
+      0: system.cxl_controller: Scheduled CXL request event at 99000 ticks
+      0: system.cxl_controller: Scheduled CXL request event at 107000 ticks
+      0: system.cxl_controller: Scheduled CXL request event at 138000 ticks
+      0: system.cxl_controller: Scheduled CXL request event at 171000 ticks
+      0: system.cxl_controller: Scheduled CXL request event at 238000 ticks
+      0: system.cxl_controller: Scheduled CXL request event at 272000 ticks
+      0: system.cxl_controller: Scheduled CXL request event at 298000 ticks
+      0: system.cxl_controller: Scheduled CXL request event at 302000 ticks
+      0: system.cxl_controller: Scheduled CXL request event at 366000 ticks
 gem5 Simulator System.  https://www.gem5.org
 gem5 is copyrighted software; use the --copyright option for details.
 
 gem5 version 24.1.0.2
-gem5 compiled May 13 2025 19:14:57
-gem5 started May 13 2025 19:17:53
-gem5 executing on wyatt-11, pid 411052
-command line: ./build/X86/gem5.opt src/cxl_objects/config/cxl_trace_replay.py --enable-cxl-debug --enable-decomp-debug
+gem5 compiled Jun  4 2025 00:56:06
+gem5 started Jun  4 2025 01:00:37
+gem5 executing on wyatt-11, pid 1003503
+command line: ./build/X86/gem5.opt src/cxl_objects/config/cxl_trace_replay.py --enable-cxl-debug
+
+Beginning CXL trace replay simulation
+Using trace file: /home/hnpark2/traceCache/gem5/src/cxl_objects/trace/generated_trace.txt
+Logging latency details to: /home/hnpark2/traceCache/gem5/src/cxl_objects/results/cxl_latency_log.txt
+L1 Cache: 32MB, 8-way, 4096B lines
+Compression block size: 4096B
+Decompression Engines: 4
+  61000: system.cxl_controller: Processing CXLReq 0x56240d28a000: Addr 0xa114e5dc0 Time 0.061
+  61000: system.cxl_controller: No BlockTracker or UBO for block 0x114e5000. Creating new UBO for CXLReq 0x56240d28a000.
+  61000: global: UBO for 0x114e5000: Added CXLReq 0x56240d28a000 (addr 0xa114e5dc0). Total pending: 1
+  61000: system.cxl_controller: UBO for 0x114e5000: Sending cache request (pkt 0x56240a20b760).
+  99000: system.cxl_controller: Processing CXLReq 0x56240d28a080: Addr 0xe7dffe100 Time 0.099
+  99000: system.cxl_controller: No BlockTracker or UBO for block 0x7dffe000. Creating new UBO for CXLReq 0x56240d28a080.
+  99000: global: UBO for 0x7dffe000: Added CXLReq 0x56240d28a080 (addr 0xe7dffe100). Total pending: 1
+  99000: system.cxl_controller: UBO for 0x7dffe000: Sending cache request (pkt 0x56240a20b6b0).
+ 107000: system.cxl_controller: Processing CXLReq 0x56240d28a100: Addr 0xefac4e1c0 Time 0.107
+ 107000: system.cxl_controller: No BlockTracker or UBO for block 0xfac4e000. Creating new UBO for CXLReq 0x56240d28a100.
+ 107000: global: UBO for 0xfac4e000: Added CXLReq 0x56240d28a100 (addr 0xefac4e1c0). Total pending: 1
+ 107000: system.cxl_controller: UBO for 0xfac4e000: Sending cache request (pkt 0x56240a20b550).
+ 111000: system.cxl_controller.cache_port: CachePort: Received response for addr 0x114e5000 (block 0x114e5000), pkt cmd ReadResp
+ 111000: system.cxl_controller.cache_port: CachePort: Found UBO for block 0x114e5000. Processing cache response. Hit: 0
+ 111000: global: UBO for 0x114e5000: Processing cache response. Hit: 0. Current CXLReqs: 1. RespPkt: 0x56240a20b760
+ 111000: global: UBO for 0x114e5000: Cache MISS. Pending CXLReqs: 1.
+ 111000: global: UBO for 0x114e5000: Sending translation request after cache miss
+ 111000: system.cxl_controller: Queueing translation request for addr 0xa114e5dc0 (req 0x56240d28a000)
+ 111000: system.cxl_controller: Scheduling next translation at tick 111000 (current: 111000)
+ 111000: global: UBO for 0x114e5000: Successfully queued translation request after cache miss using request 0x56240d28a000
+ 111000: global: UBO for 0x114e5000: Waiting for translation response before transitioning to BlockTracker.
+ 111000: system.cxl_controller: Processing next translation for req 0x56240d28a000 addr 0xa114e5dc0
+ 111000: system.cxl_controller: Translation lookup: original addr 0xa114e5dc0 (block addr 0x114e5000) → table lookup addr 0x8114e5000 (Req: 0x56240d28a000)
+ 138000: system.cxl_controller: Processing CXLReq 0x56240d28a180: Addr 0x87f029dc0 Time 0.138
+ 138000: system.cxl_controller: No BlockTracker or UBO for block 0x7f029000. Creating new UBO for CXLReq 0x56240d28a180.
+ 138000: global: UBO for 0x7f029000: Added CXLReq 0x56240d28a180 (addr 0x87f029dc0). Total pending: 1
+ 138000: system.cxl_controller: UBO for 0x7f029000: Sending cache request (pkt 0x56240a20ba20).
+ 149000: system.cxl_controller.cache_port: CachePort: Received response for addr 0x7dffe000 (block 0x7dffe000), pkt cmd ReadResp
+ 149000: system.cxl_controller.cache_port: CachePort: Found UBO for block 0x7dffe000. Processing cache response. Hit: 0
+ 149000: global: UBO for 0x7dffe000: Processing cache response. Hit: 0. Current CXLReqs: 1. RespPkt: 0x56240a20b6b0
+ 149000: global: UBO for 0x7dffe000: Cache MISS. Pending CXLReqs: 1.
+ 149000: global: UBO for 0x7dffe000: Sending translation request after cache miss
+ 149000: system.cxl_controller: Queueing translation request for addr 0xe7dffe100 (req 0x56240d28a080)
+ 149000: system.cxl_controller: Scheduling next translation at tick 149000 (current: 149000)
+ 149000: global: UBO for 0x7dffe000: Successfully queued translation request after cache miss using request 0x56240d28a080
+ 149000: global: UBO for 0x7dffe000: Waiting for translation response before transitioning to BlockTracker.
+ 149000: system.cxl_controller: Processing next translation for req 0x56240d28a080 addr 0xe7dffe100
+ 149000: system.cxl_controller: Translation lookup: original addr 0xe7dffe100 (block addr 0x7dffe000) → table lookup addr 0x87dffe000 (Req: 0x56240d28a080)
+ 157000: system.cxl_controller.cache_port: CachePort: Received response for addr 0xfac4e000 (block 0xfac4e000), pkt cmd ReadResp
+ 157000: system.cxl_controller.cache_port: CachePort: Found UBO for block 0xfac4e000. Processing cache response. Hit: 0
+ 157000: global: UBO for 0xfac4e000: Processing cache response. Hit: 0. Current CXLReqs: 1. RespPkt: 0x56240a20b550
+ 157000: global: UBO for 0xfac4e000: Cache MISS. Pending CXLReqs: 1.
+ 157000: global: UBO for 0xfac4e000: Sending translation request after cache miss
+ 157000: system.cxl_controller: Queueing translation request for addr 0xefac4e1c0 (req 0x56240d28a100)
+ 157000: system.cxl_controller: Scheduling next translation at tick 157000 (current: 157000)
+ 157000: global: UBO for 0xfac4e000: Successfully queued translation request after cache miss using request 0x56240d28a100
+ 157000: global: UBO for 0xfac4e000: Waiting for translation response before transitioning to BlockTracker.
+ 157000: system.cxl_controller: Processing next translation for req 0x56240d28a100 addr 0xefac4e1c0
+ 157000: system.cxl_controller: Translation lookup: original addr 0xefac4e1c0 (block addr 0xfac4e000) → table lookup addr 0x8fac4e000 (Req: 0x56240d28a100)
+ 164000: system.cxl_controller.translation_port: TranslationPort: Received translation response for lookup_addr 0x8114e5000. Derived original_block_addr (used as translated_addr): 0x114e5000. Pkt 0x56240a20b760
+ 164000: system.cxl_controller.translation_port: TranslationPort: UBO 0x114e5000 setting translated_addr to 0x114e5000 (from simple mapping).
+ 164000: global: UBO for 0x114e5000: Processing translation response. Translated addr: 0x114e5000. RespPkt: 0x56240a20b760
+ 164000: global: UBO for 0x114e5000: Nullifying CXLReq 0x56240d28a000 transPkt after deletion
+ 164000: global: UBO for 0x114e5000: Cache miss already processed. Transitioning to BlockTracker with translated_addr 0x114e5000.
+ 164000: system.cxl_controller: Transitioning UBO for block 0x114e5000 to BlockTracker. Translated addr: 0x114e5000. CXLReqs: 1
+ 164000: system.cxl_controller: Creating BlockTracker for block 0x114e5000 (translated 0x114e5000) with 1 CXL requests.
+ 164000: system.cxl_controller: UBO for 0x114e5000: Erased from active_block_operations map, BT created. Deleting UBO.
+ 164000: global: Destroying UnifiedBlockOperation for block 0x114e5000. cachePkt: 0, transPkt: 0
+ 164000: system.cxl_controller: UBO->BT transition for 0x114e5000: Translation complete for BT (transAddr 0x114e5000), sending to memory.
+ 164000: system.cxl_controller: Updated representative_req 0xa114e5dc0 to match BT's translated addr 0x114e5000.
+ 164000: system.cxl_controller: Using translated address 0x114e5000 for memory request (Req 0x56240d28a000, BT 0x114e5000)
+ 164000: system.cxl_controller: Original size: 4096 bytes, Raw compressed size: 2080 bytes, Final rounded compressed size: 2112 bytes (Ratio: 50.80%, CacheLineSize: 64)
+ 164000: system.cxl_controller: Sending CXL Request to Memory: Read Address: 0x114e5000 (orig: 0xa114e5dc0) Size: 2112 bytes, Ratio: 50.80% (Req: 0x56240d28a000, BT: 0x114e5000)
+ 171000: system.cxl_controller: Processing CXLReq 0x56240d28a200: Addr 0xb461e5340 Time 0.171
+ 171000: system.cxl_controller: No BlockTracker or UBO for block 0x461e5000. Creating new UBO for CXLReq 0x56240d28a200.
+ 171000: global: UBO for 0x461e5000: Added CXLReq 0x56240d28a200 (addr 0xb461e5340). Total pending: 1
+ 171000: system.cxl_controller: UBO for 0x461e5000: Sending cache request (pkt 0x56240d2aa0b0).
+ 188000: system.cxl_controller.cache_port: CachePort: Received response for addr 0x7f029000 (block 0x7f029000), pkt cmd ReadResp
+ 188000: system.cxl_controller.cache_port: CachePort: Found UBO for block 0x7f029000. Processing cache response. Hit: 0
+ 188000: global: UBO for 0x7f029000: Processing cache response. Hit: 0. Current CXLReqs: 1. RespPkt: 0x56240a20ba20
+ 188000: global: UBO for 0x7f029000: Cache MISS. Pending CXLReqs: 1.
+ 188000: global: UBO for 0x7f029000: Sending translation request after cache miss
+ 188000: system.cxl_controller: Queueing translation request for addr 0x87f029dc0 (req 0x56240d28a180)
+ 188000: system.cxl_controller: Scheduling next translation at tick 188000 (current: 188000)
+ 188000: global: UBO for 0x7f029000: Successfully queued translation request after cache miss using request 0x56240d28a180
+ 188000: global: UBO for 0x7f029000: Waiting for translation response before transitioning to BlockTracker.
+ 188000: system.cxl_controller: Processing next translation for req 0x56240d28a180 addr 0x87f029dc0
+ 188000: system.cxl_controller: Translation lookup: original addr 0x87f029dc0 (block addr 0x7f029000) → table lookup addr 0x87f029000 (Req: 0x56240d28a180)
+ 202000: system.cxl_controller.translation_port: TranslationPort: Received translation response for lookup_addr 0x87dffe000. Derived original_block_addr (used as translated_addr): 0x7dffe000. Pkt 0x56240a20b6b0
+ 202000: system.cxl_controller.translation_port: TranslationPort: UBO 0x7dffe000 setting translated_addr to 0x7dffe000 (from simple mapping).
+ 202000: global: UBO for 0x7dffe000: Processing translation response. Translated addr: 0x7dffe000. RespPkt: 0x56240a20b6b0
+ 202000: global: UBO for 0x7dffe000: Nullifying CXLReq 0x56240d28a080 transPkt after deletion
+ 202000: global: UBO for 0x7dffe000: Cache miss already processed. Transitioning to BlockTracker with translated_addr 0x7dffe000.
+ 202000: system.cxl_controller: Transitioning UBO for block 0x7dffe000 to BlockTracker. Translated addr: 0x7dffe000. CXLReqs: 1
+ 202000: system.cxl_controller: Creating BlockTracker for block 0x7dffe000 (translated 0x7dffe000) with 1 CXL requests.
+ 202000: system.cxl_controller: UBO for 0x7dffe000: Erased from active_block_operations map, BT created. Deleting UBO.
+ 202000: global: Destroying UnifiedBlockOperation for block 0x7dffe000. cachePkt: 0, transPkt: 0
+ 202000: system.cxl_controller: UBO->BT transition for 0x7dffe000: Translation complete for BT (transAddr 0x7dffe000), sending to memory.
+ 202000: system.cxl_controller: Updated representative_req 0xe7dffe100 to match BT's translated addr 0x7dffe000.
+ 202000: system.cxl_controller: Using translated address 0x7dffe000 for memory request (Req 0x56240d28a080, BT 0x7dffe000)
+ 202000: system.cxl_controller: Original size: 4096 bytes, Raw compressed size: 2174 bytes, Final rounded compressed size: 2176 bytes (Ratio: 53.10%, CacheLineSize: 64)
+ 202000: system.cxl_controller: Sending CXL Request to Memory: Read Address: 0x7dffe000 (orig: 0xe7dffe100) Size: 2176 bytes, Ratio: 53.10% (Req: 0x56240d28a080, BT: 0x7dffe000)
+ 210000: system.cxl_controller.translation_port: TranslationPort: Received translation response for lookup_addr 0x8fac4e000. Derived original_block_addr (used as translated_addr): 0xfac4e000. Pkt 0x56240a20b550
+ 210000: system.cxl_controller.translation_port: TranslationPort: UBO 0xfac4e000 setting translated_addr to 0xfac4e000 (from simple mapping).
+ 210000: global: UBO for 0xfac4e000: Processing translation response. Translated addr: 0xfac4e000. RespPkt: 0x56240a20b550
+ 210000: global: UBO for 0xfac4e000: Nullifying CXLReq 0x56240d28a100 transPkt after deletion
+ 210000: global: UBO for 0xfac4e000: Cache miss already processed. Transitioning to BlockTracker with translated_addr 0xfac4e000.
+ 210000: system.cxl_controller: Transitioning UBO for block 0xfac4e000 to BlockTracker. Translated addr: 0xfac4e000. CXLReqs: 1
+ 210000: system.cxl_controller: Creating BlockTracker for block 0xfac4e000 (translated 0xfac4e000) with 1 CXL requests.
+ 210000: system.cxl_controller: UBO for 0xfac4e000: Erased from active_block_operations map, BT created. Deleting UBO.
+ 210000: global: Destroying UnifiedBlockOperation for block 0xfac4e000. cachePkt: 0, transPkt: 0
+ 210000: system.cxl_controller: UBO->BT transition for 0xfac4e000: Translation complete for BT (transAddr 0xfac4e000), sending to memory.
+ 210000: system.cxl_controller: Updated representative_req 0xefac4e1c0 to match BT's translated addr 0xfac4e000.
+ 210000: system.cxl_controller: Using translated address 0xfac4e000 for memory request (Req 0x56240d28a100, BT 0xfac4e000)
+ 210000: system.cxl_controller: Original size: 4096 bytes, Raw compressed size: 1998 bytes, Final rounded compressed size: 2048 bytes (Ratio: 48.80%, CacheLineSize: 64)
+ 210000: system.cxl_controller: Sending CXL Request to Memory: Read Address: 0xfac4e000 (orig: 0xefac4e1c0) Size: 2048 bytes, Ratio: 48.80% (Req: 0x56240d28a100, BT: 0xfac4e000)
+ 221000: system.cxl_controller.cache_port: CachePort: Received response for addr 0x461e5000 (block 0x461e5000), pkt cmd ReadResp
+ 221000: system.cxl_controller.cache_port: CachePort: Found UBO for block 0x461e5000. Processing cache response. Hit: 0
+ 221000: global: UBO for 0x461e5000: Processing cache response. Hit: 0. Current CXLReqs: 1. RespPkt: 0x56240d2aa0b0
+ 221000: global: UBO for 0x461e5000: Cache MISS. Pending CXLReqs: 1.
+ 221000: global: UBO for 0x461e5000: Sending translation request after cache miss
+ 221000: system.cxl_controller: Queueing translation request for addr 0xb461e5340 (req 0x56240d28a200)
+ 221000: system.cxl_controller: Scheduling next translation at tick 221000 (current: 221000)
+ 221000: global: UBO for 0x461e5000: Successfully queued translation request after cache miss using request 0x56240d28a200
+ 221000: global: UBO for 0x461e5000: Waiting for translation response before transitioning to BlockTracker.
+ 221000: system.cxl_controller: Processing next translation for req 0x56240d28a200 addr 0xb461e5340
+ 221000: system.cxl_controller: Translation lookup: original addr 0xb461e5340 (block addr 0x461e5000) → table lookup addr 0x8461e5000 (Req: 0x56240d28a200)
+ 238000: system.cxl_controller: Processing CXLReq 0x56240d28a280: Addr 0xfac55a380 Time 0.238
+ 238000: system.cxl_controller: No BlockTracker or UBO for block 0xac55a000. Creating new UBO for CXLReq 0x56240d28a280.
+ 238000: global: UBO for 0xac55a000: Added CXLReq 0x56240d28a280 (addr 0xfac55a380). Total pending: 1
+ 238000: system.cxl_controller: UBO for 0xac55a000: Sending cache request (pkt 0x56240d2b9c30).
+ 241000: system.cxl_controller.translation_port: TranslationPort: Received translation response for lookup_addr 0x87f029000. Derived original_block_addr (used as translated_addr): 0x7f029000. Pkt 0x56240a20ba20
+ 241000: system.cxl_controller.translation_port: TranslationPort: UBO 0x7f029000 setting translated_addr to 0x7f029000 (from simple mapping).
+ 241000: global: UBO for 0x7f029000: Processing translation response. Translated addr: 0x7f029000. RespPkt: 0x56240a20ba20
+ 241000: global: UBO for 0x7f029000: Nullifying CXLReq 0x56240d28a180 transPkt after deletion
+ 241000: global: UBO for 0x7f029000: Cache miss already processed. Transitioning to BlockTracker with translated_addr 0x7f029000.
+ 241000: system.cxl_controller: Transitioning UBO for block 0x7f029000 to BlockTracker. Translated addr: 0x7f029000. CXLReqs: 1
+ 241000: system.cxl_controller: Creating BlockTracker for block 0x7f029000 (translated 0x7f029000) with 1 CXL requests.
+ 241000: system.cxl_controller: UBO for 0x7f029000: Erased from active_block_operations map, BT created. Deleting UBO.
+ 241000: global: Destroying UnifiedBlockOperation for block 0x7f029000. cachePkt: 0, transPkt: 0
+ 241000: system.cxl_controller: UBO->BT transition for 0x7f029000: Translation complete for BT (transAddr 0x7f029000), sending to memory.
+ 241000: system.cxl_controller: Updated representative_req 0x87f029dc0 to match BT's translated addr 0x7f029000.
+ 241000: system.cxl_controller: Using translated address 0x7f029000 for memory request (Req 0x56240d28a180, BT 0x7f029000)
+ 241000: system.cxl_controller: Original size: 4096 bytes, Raw compressed size: 2187 bytes, Final rounded compressed size: 2240 bytes (Ratio: 53.40%, CacheLineSize: 64)
+ 241000: system.cxl_controller: Sending CXL Request to Memory: Read Address: 0x7f029000 (orig: 0x87f029dc0) Size: 2240 bytes, Ratio: 53.40% (Req: 0x56240d28a180, BT: 0x7f029000)
+ 244500: system.decompbus.respLayer0: XBar system.decompbus layer system.decompbus.respLayer0 busy: state=BUSY waitingForPeer=none
+ 254500: system.decompbus.respLayer0: XBar system.decompbus layer system.decompbus.respLayer0 busy: state=BUSY waitingForPeer=none
+ 272000: system.cxl_controller: Processing CXLReq 0x56240d28a300: Addr 0x732062cc0 Time 0.272
+ 272000: system.cxl_controller: No BlockTracker or UBO for block 0x32062000. Creating new UBO for CXLReq 0x56240d28a300.
+ 272000: global: UBO for 0x32062000: Added CXLReq 0x56240d28a300 (addr 0x732062cc0). Total pending: 1
+ 272000: system.cxl_controller: UBO for 0x32062000: Sending cache request (pkt 0x56240d2c3290).
+ 284000: system.cxl_controller.translation_port: TranslationPort: Received translation response for lookup_addr 0x8461e5000. Derived original_block_addr (used as translated_addr): 0x461e5000. Pkt 0x56240d2aa0b0
+ 284000: system.cxl_controller.translation_port: TranslationPort: UBO 0x461e5000 setting translated_addr to 0x461e5000 (from simple mapping).
+ 284000: global: UBO for 0x461e5000: Processing translation response. Translated addr: 0x461e5000. RespPkt: 0x56240d2aa0b0
+ 284000: global: UBO for 0x461e5000: Nullifying CXLReq 0x56240d28a200 transPkt after deletion
+ 284000: global: UBO for 0x461e5000: Cache miss already processed. Transitioning to BlockTracker with translated_addr 0x461e5000.
+ 284000: system.cxl_controller: Transitioning UBO for block 0x461e5000 to BlockTracker. Translated addr: 0x461e5000. CXLReqs: 1
+ 284000: system.cxl_controller: Creating BlockTracker for block 0x461e5000 (translated 0x461e5000) with 1 CXL requests.
+ 284000: system.cxl_controller: UBO for 0x461e5000: Erased from active_block_operations map, BT created. Deleting UBO.
+ 284000: global: Destroying UnifiedBlockOperation for block 0x461e5000. cachePkt: 0, transPkt: 0
+ 284000: system.cxl_controller: UBO->BT transition for 0x461e5000: Translation complete for BT (transAddr 0x461e5000), sending to memory.
+ 284000: system.cxl_controller: Updated representative_req 0xb461e5340 to match BT's translated addr 0x461e5000.
+ 284000: system.cxl_controller: Using translated address 0x461e5000 for memory request (Req 0x56240d28a200, BT 0x461e5000)
+ 284000: system.cxl_controller: Original size: 4096 bytes, Raw compressed size: 2187 bytes, Final rounded compressed size: 2240 bytes (Ratio: 53.40%, CacheLineSize: 64)
+ 284000: system.cxl_controller: Sending CXL Request to Memory: Read Address: 0x461e5000 (orig: 0xb461e5340) Size: 2240 bytes, Ratio: 53.40% (Req: 0x56240d28a200, BT: 0x461e5000)
+ 288000: system.cxl_controller.cache_port: CachePort: Received response for addr 0xac55a000 (block 0xac55a000), pkt cmd ReadResp
+ 288000: system.cxl_controller.cache_port: CachePort: Found UBO for block 0xac55a000. Processing cache response. Hit: 0
+ 288000: global: UBO for 0xac55a000: Processing cache response. Hit: 0. Current CXLReqs: 1. RespPkt: 0x56240d2b9c30
+ 288000: global: UBO for 0xac55a000: Cache MISS. Pending CXLReqs: 1.
+ 288000: global: UBO for 0xac55a000: Sending translation request after cache miss
+ 288000: system.cxl_controller: Queueing translation request for addr 0xfac55a380 (req 0x56240d28a280)
+ 288000: system.cxl_controller: Scheduling next translation at tick 288000 (current: 288000)
+ 288000: global: UBO for 0xac55a000: Successfully queued translation request after cache miss using request 0x56240d28a280
+ 288000: global: UBO for 0xac55a000: Waiting for translation response before transitioning to BlockTracker.
+ 288000: system.cxl_controller: Processing next translation for req 0x56240d28a280 addr 0xfac55a380
+ 288000: system.cxl_controller: Translation lookup: original addr 0xfac55a380 (block addr 0xac55a000) → table lookup addr 0x8ac55a000 (Req: 0x56240d28a280)
+ 298000: system.cxl_controller: Processing CXLReq 0x56240d28a380: Addr 0x6f4ecd380 Time 0.298
+ 298000: system.cxl_controller: No BlockTracker or UBO for block 0xf4ecd000. Creating new UBO for CXLReq 0x56240d28a380.
+ 298000: global: UBO for 0xf4ecd000: Added CXLReq 0x56240d28a380 (addr 0x6f4ecd380). Total pending: 1
+ 298000: system.cxl_controller: UBO for 0xf4ecd000: Sending cache request (pkt 0x56240d2c3d90).
+ 302000: system.cxl_controller: Processing CXLReq 0x56240d28a400: Addr 0x1cf2e9540 Time 0.302
+ 302000: system.cxl_controller: No BlockTracker or UBO for block 0xcf2e9000. Creating new UBO for CXLReq 0x56240d28a400.
+ 302000: global: UBO for 0xcf2e9000: Added CXLReq 0x56240d28a400 (addr 0x1cf2e9540). Total pending: 1
+ 302000: system.cxl_controller: UBO for 0xcf2e9000: Sending cache request (pkt 0x56240d2c8160).
+ 322000: system.cxl_controller.cache_port: CachePort: Received response for addr 0x32062000 (block 0x32062000), pkt cmd ReadResp
+ 322000: system.cxl_controller.cache_port: CachePort: Found UBO for block 0x32062000. Processing cache response. Hit: 0
+ 322000: global: UBO for 0x32062000: Processing cache response. Hit: 0. Current CXLReqs: 1. RespPkt: 0x56240d2c3290
+ 322000: global: UBO for 0x32062000: Cache MISS. Pending CXLReqs: 1.
+ 322000: global: UBO for 0x32062000: Sending translation request after cache miss
+ 322000: system.cxl_controller: Queueing translation request for addr 0x732062cc0 (req 0x56240d28a300)
+ 322000: system.cxl_controller: Scheduling next translation at tick 322000 (current: 322000)
+ 322000: global: UBO for 0x32062000: Successfully queued translation request after cache miss using request 0x56240d28a300
+ 322000: global: UBO for 0x32062000: Waiting for translation response before transitioning to BlockTracker.
+ 322000: system.cxl_controller: Processing next translation for req 0x56240d28a300 addr 0x732062cc0
+ 322000: system.cxl_controller: Translation lookup: original addr 0x732062cc0 (block addr 0x32062000) → table lookup addr 0x832062000 (Req: 0x56240d28a300)
+ 341000: system.cxl_controller.translation_port: TranslationPort: Received translation response for lookup_addr 0x8ac55a000. Derived original_block_addr (used as translated_addr): 0xac55a000. Pkt 0x56240d2b9c30
+ 341000: system.cxl_controller.translation_port: TranslationPort: UBO 0xac55a000 setting translated_addr to 0xac55a000 (from simple mapping).
+ 341000: global: UBO for 0xac55a000: Processing translation response. Translated addr: 0xac55a000. RespPkt: 0x56240d2b9c30
+ 341000: global: UBO for 0xac55a000: Nullifying CXLReq 0x56240d28a280 transPkt after deletion
+ 341000: global: UBO for 0xac55a000: Cache miss already processed. Transitioning to BlockTracker with translated_addr 0xac55a000.
+ 341000: system.cxl_controller: Transitioning UBO for block 0xac55a000 to BlockTracker. Translated addr: 0xac55a000. CXLReqs: 1
+ 341000: system.cxl_controller: Creating BlockTracker for block 0xac55a000 (translated 0xac55a000) with 1 CXL requests.
+ 341000: system.cxl_controller: UBO for 0xac55a000: Erased from active_block_operations map, BT created. Deleting UBO.
+ 341000: global: Destroying UnifiedBlockOperation for block 0xac55a000. cachePkt: 0, transPkt: 0
+ 341000: system.cxl_controller: UBO->BT transition for 0xac55a000: Translation complete for BT (transAddr 0xac55a000), sending to memory.
+ 341000: system.cxl_controller: Updated representative_req 0xfac55a380 to match BT's translated addr 0xac55a000.
+ 341000: system.cxl_controller: Using translated address 0xac55a000 for memory request (Req 0x56240d28a280, BT 0xac55a000)
+ 341000: system.cxl_controller: Original size: 4096 bytes, Raw compressed size: 1941 bytes, Final rounded compressed size: 1984 bytes (Ratio: 47.40%, CacheLineSize: 64)
+ 341000: system.cxl_controller: Sending CXL Request to Memory: Read Address: 0xac55a000 (orig: 0xfac55a380) Size: 1984 bytes, Ratio: 47.40% (Req: 0x56240d28a280, BT: 0xac55a000)
+ 348000: system.cxl_controller.cache_port: CachePort: Received response for addr 0xf4ecd000 (block 0xf4ecd000), pkt cmd ReadResp
+ 348000: system.cxl_controller.cache_port: CachePort: Found UBO for block 0xf4ecd000. Processing cache response. Hit: 0
+ 348000: global: UBO for 0xf4ecd000: Processing cache response. Hit: 0. Current CXLReqs: 1. RespPkt: 0x56240d2c3d90
+ 348000: global: UBO for 0xf4ecd000: Cache MISS. Pending CXLReqs: 1.
+ 348000: global: UBO for 0xf4ecd000: Sending translation request after cache miss
+ 348000: system.cxl_controller: Queueing translation request for addr 0x6f4ecd380 (req 0x56240d28a380)
+ 348000: system.cxl_controller: Scheduling next translation at tick 348000 (current: 348000)
+ 348000: global: UBO for 0xf4ecd000: Successfully queued translation request after cache miss using request 0x56240d28a380
+ 348000: global: UBO for 0xf4ecd000: Waiting for translation response before transitioning to BlockTracker.
+ 348000: system.cxl_controller: Processing next translation for req 0x56240d28a380 addr 0x6f4ecd380
+ 348000: system.cxl_controller: Translation lookup: original addr 0x6f4ecd380 (block addr 0xf4ecd000) → table lookup addr 0x8f4ecd000 (Req: 0x56240d28a380)
+ 352000: system.cxl_controller.cache_port: CachePort: Received response for addr 0xcf2e9000 (block 0xcf2e9000), pkt cmd ReadResp
+ 352000: system.cxl_controller.cache_port: CachePort: Found UBO for block 0xcf2e9000. Processing cache response. Hit: 0
+ 352000: global: UBO for 0xcf2e9000: Processing cache response. Hit: 0. Current CXLReqs: 1. RespPkt: 0x56240d2c8160
+ 352000: global: UBO for 0xcf2e9000: Cache MISS. Pending CXLReqs: 1.
+ 352000: global: UBO for 0xcf2e9000: Sending translation request after cache miss
+ 352000: system.cxl_controller: Queueing translation request for addr 0x1cf2e9540 (req 0x56240d28a400)
+ 352000: system.cxl_controller: Scheduling next translation at tick 353000 (current: 352000)
+ 352000: global: UBO for 0xcf2e9000: Successfully queued translation request after cache miss using request 0x56240d28a400
+ 352000: global: UBO for 0xcf2e9000: Waiting for translation response before transitioning to BlockTracker.
+ 353000: system.cxl_controller: Processing next translation for req 0x56240d28a400 addr 0x1cf2e9540
+ 353000: system.cxl_controller: Translation lookup: original addr 0x1cf2e9540 (block addr 0xcf2e9000) → table lookup addr 0x8cf2e9000 (Req: 0x56240d28a400)
+ 366000: system.cxl_controller: Processing CXLReq 0x56240d28a480: Addr 0xaa74355c0 Time 0.366
+ 366000: system.cxl_controller: No BlockTracker or UBO for block 0xa7435000. Creating new UBO for CXLReq 0x56240d28a480.
+ 366000: global: UBO for 0xa7435000: Added CXLReq 0x56240d28a480 (addr 0xaa74355c0). Total pending: 1
+ 366000: system.cxl_controller: UBO for 0xa7435000: Sending cache request (pkt 0x56240d2c9ad0).
+ 367000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aa6e0, pkt addr 0x114e5000, size 4, cmd ReadResp)
+ 367000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x114e5000 with 1 ready cachelines (pkt 0x56240d2aa6e0)
+ 367000: system.cxl_controller: Received readiness update for block 0x114e5000: 1 cachelines ready
+ 375000: system.cxl_controller.translation_port: TranslationPort: Received translation response for lookup_addr 0x832062000. Derived original_block_addr (used as translated_addr): 0x32062000. Pkt 0x56240d2c3290
+ 375000: system.cxl_controller.translation_port: TranslationPort: UBO 0x32062000 setting translated_addr to 0x32062000 (from simple mapping).
+ 375000: global: UBO for 0x32062000: Processing translation response. Translated addr: 0x32062000. RespPkt: 0x56240d2c3290
+ 375000: global: UBO for 0x32062000: Nullifying CXLReq 0x56240d28a300 transPkt after deletion
+ 375000: global: UBO for 0x32062000: Cache miss already processed. Transitioning to BlockTracker with translated_addr 0x32062000.
+ 375000: system.cxl_controller: Transitioning UBO for block 0x32062000 to BlockTracker. Translated addr: 0x32062000. CXLReqs: 1
+ 375000: system.cxl_controller: Creating BlockTracker for block 0x32062000 (translated 0x32062000) with 1 CXL requests.
+ 375000: system.cxl_controller: UBO for 0x32062000: Erased from active_block_operations map, BT created. Deleting UBO.
+ 375000: global: Destroying UnifiedBlockOperation for block 0x32062000. cachePkt: 0, transPkt: 0
+ 375000: system.cxl_controller: UBO->BT transition for 0x32062000: Translation complete for BT (transAddr 0x32062000), sending to memory.
+ 375000: system.cxl_controller: Updated representative_req 0x732062cc0 to match BT's translated addr 0x32062000.
+ 375000: system.cxl_controller: Using translated address 0x32062000 for memory request (Req 0x56240d28a300, BT 0x32062000)
+ 375000: system.cxl_controller: Original size: 4096 bytes, Raw compressed size: 2154 bytes, Final rounded compressed size: 2176 bytes (Ratio: 52.60%, CacheLineSize: 64)
+ 375000: system.cxl_controller: Sending CXL Request to Memory: Read Address: 0x32062000 (orig: 0x732062cc0) Size: 2176 bytes, Ratio: 52.60% (Req: 0x56240d28a300, BT: 0x32062000)
+ 377000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aa790, pkt addr 0x114e5000, size 4, cmd ReadResp)
+ 377000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x114e5000 with 3 ready cachelines (pkt 0x56240d2aa790)
+ 377000: system.cxl_controller: Received readiness update for block 0x114e5000: 3 cachelines ready
+ 387000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aa840, pkt addr 0x114e5000, size 4, cmd ReadResp)
+ 387000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x114e5000 with 5 ready cachelines (pkt 0x56240d2aa840)
+ 387000: system.cxl_controller: Received readiness update for block 0x114e5000: 5 cachelines ready
+ 397000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aa8f0, pkt addr 0x114e5000, size 4, cmd ReadResp)
+ 397000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x114e5000 with 7 ready cachelines (pkt 0x56240d2aa8f0)
+ 397000: system.cxl_controller: Received readiness update for block 0x114e5000: 7 cachelines ready
+ 401000: system.cxl_controller.translation_port: TranslationPort: Received translation response for lookup_addr 0x8f4ecd000. Derived original_block_addr (used as translated_addr): 0xf4ecd000. Pkt 0x56240d2c3d90
+ 401000: system.cxl_controller.translation_port: TranslationPort: UBO 0xf4ecd000 setting translated_addr to 0xf4ecd000 (from simple mapping).
+ 401000: global: UBO for 0xf4ecd000: Processing translation response. Translated addr: 0xf4ecd000. RespPkt: 0x56240d2c3d90
+ 401000: global: UBO for 0xf4ecd000: Nullifying CXLReq 0x56240d28a380 transPkt after deletion
+ 401000: global: UBO for 0xf4ecd000: Cache miss already processed. Transitioning to BlockTracker with translated_addr 0xf4ecd000.
+ 401000: system.cxl_controller: Transitioning UBO for block 0xf4ecd000 to BlockTracker. Translated addr: 0xf4ecd000. CXLReqs: 1
+ 401000: system.cxl_controller: Creating BlockTracker for block 0xf4ecd000 (translated 0xf4ecd000) with 1 CXL requests.
+ 401000: system.cxl_controller: UBO for 0xf4ecd000: Erased from active_block_operations map, BT created. Deleting UBO.
+ 401000: global: Destroying UnifiedBlockOperation for block 0xf4ecd000. cachePkt: 0, transPkt: 0
+ 401000: system.cxl_controller: UBO->BT transition for 0xf4ecd000: Translation complete for BT (transAddr 0xf4ecd000), sending to memory.
+ 401000: system.cxl_controller: Updated representative_req 0x6f4ecd380 to match BT's translated addr 0xf4ecd000.
+ 401000: system.cxl_controller: Using translated address 0xf4ecd000 for memory request (Req 0x56240d28a380, BT 0xf4ecd000)
+ 401000: system.cxl_controller: Original size: 4096 bytes, Raw compressed size: 1896 bytes, Final rounded compressed size: 1920 bytes (Ratio: 46.30%, CacheLineSize: 64)
+ 401000: system.cxl_controller: Sending CXL Request to Memory: Read Address: 0xf4ecd000 (orig: 0x6f4ecd380) Size: 1920 bytes, Ratio: 46.30% (Req: 0x56240d28a380, BT: 0xf4ecd000)
+ 402000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2d7130, pkt addr 0x114e5000, size 4, cmd ReadResp)
+ 402000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x114e5000 with 9 ready cachelines (pkt 0x56240d2d7130)
+ 402000: system.cxl_controller: Received readiness update for block 0x114e5000: 9 cachelines ready
+ 406000: system.cxl_controller.translation_port: TranslationPort: Received translation response for lookup_addr 0x8cf2e9000. Derived original_block_addr (used as translated_addr): 0xcf2e9000. Pkt 0x56240d2c8160
+ 406000: system.cxl_controller.translation_port: TranslationPort: UBO 0xcf2e9000 setting translated_addr to 0xcf2e9000 (from simple mapping).
+ 406000: global: UBO for 0xcf2e9000: Processing translation response. Translated addr: 0xcf2e9000. RespPkt: 0x56240d2c8160
+ 406000: global: UBO for 0xcf2e9000: Nullifying CXLReq 0x56240d28a400 transPkt after deletion
+ 406000: global: UBO for 0xcf2e9000: Cache miss already processed. Transitioning to BlockTracker with translated_addr 0xcf2e9000.
+ 406000: system.cxl_controller: Transitioning UBO for block 0xcf2e9000 to BlockTracker. Translated addr: 0xcf2e9000. CXLReqs: 1
+ 406000: system.cxl_controller: Creating BlockTracker for block 0xcf2e9000 (translated 0xcf2e9000) with 1 CXL requests.
+ 406000: system.cxl_controller: UBO for 0xcf2e9000: Erased from active_block_operations map, BT created. Deleting UBO.
+ 406000: global: Destroying UnifiedBlockOperation for block 0xcf2e9000. cachePkt: 0, transPkt: 0
+ 406000: system.cxl_controller: UBO->BT transition for 0xcf2e9000: Translation complete for BT (transAddr 0xcf2e9000), sending to memory.
+ 406000: system.cxl_controller: Updated representative_req 0x1cf2e9540 to match BT's translated addr 0xcf2e9000.
+ 406000: system.cxl_controller: Using translated address 0xcf2e9000 for memory request (Req 0x56240d28a400, BT 0xcf2e9000)
+ 406000: system.cxl_controller: Original size: 4096 bytes, Raw compressed size: 1937 bytes, Final rounded compressed size: 1984 bytes (Ratio: 47.30%, CacheLineSize: 64)
+ 406000: system.cxl_controller: Sending CXL Request to Memory: Read Address: 0xcf2e9000 (orig: 0x1cf2e9540) Size: 1984 bytes, Ratio: 47.30% (Req: 0x56240d28a400, BT: 0xcf2e9000)
+ 407000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aa9a0, pkt addr 0x114e5000, size 4, cmd ReadResp)
+ 407000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x114e5000 with 11 ready cachelines (pkt 0x56240d2aa9a0)
+ 407000: system.cxl_controller: Received readiness update for block 0x114e5000: 11 cachelines ready
+ 416000: system.cxl_controller.cache_port: CachePort: Received response for addr 0xa7435000 (block 0xa7435000), pkt cmd ReadResp
+ 416000: system.cxl_controller.cache_port: CachePort: Found UBO for block 0xa7435000. Processing cache response. Hit: 0
+ 416000: global: UBO for 0xa7435000: Processing cache response. Hit: 0. Current CXLReqs: 1. RespPkt: 0x56240d2c9ad0
+ 416000: global: UBO for 0xa7435000: Cache MISS. Pending CXLReqs: 1.
+ 416000: global: UBO for 0xa7435000: Sending translation request after cache miss
+ 416000: system.cxl_controller: Queueing translation request for addr 0xaa74355c0 (req 0x56240d28a480)
+ 416000: system.cxl_controller: Scheduling next translation at tick 416000 (current: 416000)
+ 416000: global: UBO for 0xa7435000: Successfully queued translation request after cache miss using request 0x56240d28a480
+ 416000: global: UBO for 0xa7435000: Waiting for translation response before transitioning to BlockTracker.
+ 416000: system.cxl_controller: Processing next translation for req 0x56240d28a480 addr 0xaa74355c0
+ 416000: system.cxl_controller: Translation lookup: original addr 0xaa74355c0 (block addr 0xa7435000) → table lookup addr 0x8a7435000 (Req: 0x56240d28a480)
+ 417000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aaa50, pkt addr 0x114e5000, size 4, cmd ReadResp)
+ 417000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x114e5000 with 13 ready cachelines (pkt 0x56240d2aaa50)
+ 417000: system.cxl_controller: Received readiness update for block 0x114e5000: 13 cachelines ready
+ 427000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aab00, pkt addr 0x114e5000, size 4, cmd ReadResp)
+ 427000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x114e5000 with 15 ready cachelines (pkt 0x56240d2aab00)
+ 427000: system.cxl_controller: Received readiness update for block 0x114e5000: 15 cachelines ready
+ 437000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aabb0, pkt addr 0x114e5000, size 4, cmd ReadResp)
+ 437000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x114e5000 with 17 ready cachelines (pkt 0x56240d2aabb0)
+ 437000: system.cxl_controller: Received readiness update for block 0x114e5000: 17 cachelines ready
+ 447000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aac60, pkt addr 0x114e5000, size 4, cmd ReadResp)
+ 447000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x114e5000 with 19 ready cachelines (pkt 0x56240d2aac60)
+ 447000: system.cxl_controller: Received readiness update for block 0x114e5000: 19 cachelines ready
+ 457000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aad10, pkt addr 0x114e5000, size 4, cmd ReadResp)
+ 457000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x114e5000 with 21 ready cachelines (pkt 0x56240d2aad10)
+ 457000: system.cxl_controller: Received readiness update for block 0x114e5000: 21 cachelines ready
+ 467000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aadc0, pkt addr 0x114e5000, size 4, cmd ReadResp)
+ 467000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x114e5000 with 23 ready cachelines (pkt 0x56240d2aadc0)
+ 467000: system.cxl_controller: Received readiness update for block 0x114e5000: 23 cachelines ready
+ 469000: system.cxl_controller.translation_port: TranslationPort: Received translation response for lookup_addr 0x8a7435000. Derived original_block_addr (used as translated_addr): 0xa7435000. Pkt 0x56240d2c9ad0
+ 469000: system.cxl_controller.translation_port: TranslationPort: UBO 0xa7435000 setting translated_addr to 0xa7435000 (from simple mapping).
+ 469000: global: UBO for 0xa7435000: Processing translation response. Translated addr: 0xa7435000. RespPkt: 0x56240d2c9ad0
+ 469000: global: UBO for 0xa7435000: Nullifying CXLReq 0x56240d28a480 transPkt after deletion
+ 469000: global: UBO for 0xa7435000: Cache miss already processed. Transitioning to BlockTracker with translated_addr 0xa7435000.
+ 469000: system.cxl_controller: Transitioning UBO for block 0xa7435000 to BlockTracker. Translated addr: 0xa7435000. CXLReqs: 1
+ 469000: system.cxl_controller: Creating BlockTracker for block 0xa7435000 (translated 0xa7435000) with 1 CXL requests.
+ 469000: system.cxl_controller: UBO for 0xa7435000: Erased from active_block_operations map, BT created. Deleting UBO.
+ 469000: global: Destroying UnifiedBlockOperation for block 0xa7435000. cachePkt: 0, transPkt: 0
+ 469000: system.cxl_controller: UBO->BT transition for 0xa7435000: Translation complete for BT (transAddr 0xa7435000), sending to memory.
+ 469000: system.cxl_controller: Updated representative_req 0xaa74355c0 to match BT's translated addr 0xa7435000.
+ 469000: system.cxl_controller: Using translated address 0xa7435000 for memory request (Req 0x56240d28a480, BT 0xa7435000)
+ 469000: system.cxl_controller: Original size: 4096 bytes, Raw compressed size: 1892 bytes, Final rounded compressed size: 1920 bytes (Ratio: 46.20%, CacheLineSize: 64)
+ 469000: system.cxl_controller: Sending CXL Request to Memory: Read Address: 0xa7435000 (orig: 0xaa74355c0) Size: 1920 bytes, Ratio: 46.20% (Req: 0x56240d28a480, BT: 0xa7435000)
+ 477000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aae70, pkt addr 0x114e5000, size 4, cmd ReadResp)
+ 477000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x114e5000 with 25 ready cachelines (pkt 0x56240d2aae70)
+ 477000: system.cxl_controller: Received readiness update for block 0x114e5000: 25 cachelines ready
+ 487000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aaf20, pkt addr 0x114e5000, size 4, cmd ReadResp)
+ 487000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x114e5000 with 27 ready cachelines (pkt 0x56240d2aaf20)
+ 487000: system.cxl_controller: Received readiness update for block 0x114e5000: 27 cachelines ready
+ 497000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aafd0, pkt addr 0x114e5000, size 4, cmd ReadResp)
+ 497000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x114e5000 with 29 ready cachelines (pkt 0x56240d2aafd0)
+ 497000: system.cxl_controller: Received readiness update for block 0x114e5000: 29 cachelines ready
+ 507000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2ab080, pkt addr 0x114e5000, size 4, cmd ReadResp)
+ 507000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x114e5000 with 31 ready cachelines (pkt 0x56240d2ab080)
+ 507000: system.cxl_controller: Received readiness update for block 0x114e5000: 31 cachelines ready
+ 517000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2ab130, pkt addr 0x114e5000, size 4, cmd ReadResp)
+ 517000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x114e5000 with 32 ready cachelines (pkt 0x56240d2ab130)
+ 517000: system.cxl_controller: Received readiness update for block 0x114e5000: 32 cachelines ready
+ 527000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2ab1e0, pkt addr 0x114e5000, size 4, cmd ReadResp)
+ 527000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x114e5000 with 34 ready cachelines (pkt 0x56240d2ab1e0)
+ 527000: system.cxl_controller: Received readiness update for block 0x114e5000: 34 cachelines ready
+ 537000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2ab1e0, pkt addr 0x114e5000, size 4, cmd ReadResp)
+ 537000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x114e5000 with 36 ready cachelines (pkt 0x56240d2ab1e0)
+ 537000: system.cxl_controller: Received readiness update for block 0x114e5000: 36 cachelines ready
+ 547000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2ab290, pkt addr 0x114e5000, size 4, cmd ReadResp)
+ 547000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x114e5000 with 38 ready cachelines (pkt 0x56240d2ab290)
+ 547000: system.cxl_controller: Received readiness update for block 0x114e5000: 38 cachelines ready
+ 557000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2ab340, pkt addr 0x114e5000, size 4, cmd ReadResp)
+ 557000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x114e5000 with 40 ready cachelines (pkt 0x56240d2ab340)
+ 557000: system.cxl_controller: Received readiness update for block 0x114e5000: 40 cachelines ready
+ 567000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2ab3f0, pkt addr 0x114e5000, size 4, cmd ReadResp)
+ 567000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x114e5000 with 42 ready cachelines (pkt 0x56240d2ab3f0)
+ 567000: system.cxl_controller: Received readiness update for block 0x114e5000: 42 cachelines ready
+ 574500: system.decompbus.respLayer0: XBar system.decompbus layer system.decompbus.respLayer0 busy: state=BUSY waitingForPeer=none
+ 577000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2ab4a0, pkt addr 0x114e5000, size 4, cmd ReadResp)
+ 577000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x114e5000 with 44 ready cachelines (pkt 0x56240d2ab4a0)
+ 577000: system.cxl_controller: Received readiness update for block 0x114e5000: 44 cachelines ready
+ 584500: system.decompbus.respLayer0: XBar system.decompbus layer system.decompbus.respLayer0 busy: state=BUSY waitingForPeer=none
+ 587000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2ab600, pkt addr 0x114e5000, size 4, cmd ReadResp)
+ 587000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x114e5000 with 46 ready cachelines (pkt 0x56240d2ab600)
+ 587000: system.cxl_controller: Received readiness update for block 0x114e5000: 46 cachelines ready
+ 597000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2ab6b0, pkt addr 0x114e5000, size 4, cmd ReadResp)
+ 597000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x114e5000 with 48 ready cachelines (pkt 0x56240d2ab6b0)
+ 597000: system.cxl_controller: Received readiness update for block 0x114e5000: 48 cachelines ready
+ 607000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2ab760, pkt addr 0x114e5000, size 4, cmd ReadResp)
+ 607000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x114e5000 with 50 ready cachelines (pkt 0x56240d2ab760)
+ 607000: system.cxl_controller: Received readiness update for block 0x114e5000: 50 cachelines ready
+ 617000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2ab810, pkt addr 0x114e5000, size 4, cmd ReadResp)
+ 617000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x114e5000 with 52 ready cachelines (pkt 0x56240d2ab810)
+ 617000: system.cxl_controller: Received readiness update for block 0x114e5000: 52 cachelines ready
+ 627000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2ab810, pkt addr 0x114e5000, size 4, cmd ReadResp)
+ 627000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x114e5000 with 54 ready cachelines (pkt 0x56240d2ab810)
+ 627000: system.cxl_controller: Received readiness update for block 0x114e5000: 54 cachelines ready
+ 637000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2ab8c0, pkt addr 0x114e5000, size 4, cmd ReadResp)
+ 637000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x114e5000 with 56 ready cachelines (pkt 0x56240d2ab8c0)
+ 637000: system.cxl_controller: Received readiness update for block 0x114e5000: 56 cachelines ready
+ 647000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2ab970, pkt addr 0x114e5000, size 4, cmd ReadResp)
+ 647000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x114e5000 with 58 ready cachelines (pkt 0x56240d2ab970)
+ 647000: system.cxl_controller: Received readiness update for block 0x114e5000: 58 cachelines ready
+ 648666: system.decompbus.respLayer0: XBar system.decompbus layer system.decompbus.respLayer0 busy: state=BUSY waitingForPeer=none
+ 654500: system.decompbus.respLayer0: XBar system.decompbus layer system.decompbus.respLayer0 busy: state=BUSY waitingForPeer=none
+ 657000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2abad0, pkt addr 0x114e5000, size 4, cmd ReadResp)
+ 657000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x114e5000 with 60 ready cachelines (pkt 0x56240d2abad0)
+ 657000: system.cxl_controller: Received readiness update for block 0x114e5000: 60 cachelines ready
+ 667000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2abad0, pkt addr 0x114e5000, size 4, cmd ReadResp)
+ 667000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x114e5000 with 62 ready cachelines (pkt 0x56240d2abad0)
+ 667000: system.cxl_controller: Received readiness update for block 0x114e5000: 62 cachelines ready
+ 677000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240a20b760, pkt addr 0x114e5000, size 2112, cmd ReadResp)
+ 677000: system.cxl_controller.mem_port: Received final data block confirmation from DecompEngine for CXLReq 0x56240d28a000 (orig CXL addr 0xa114e5dc0), using its memPkt 0x56240a20b760. Size: 2112, Cmd: ReadResp
+ 677000: system.cxl_controller.mem_port: Removing CXLReq 0x56240d28a000 from outstandingMemReqs (key 0x114e5000) as final confirmation received.
+ 677000: system.cxl_controller.mem_port: Final block confirmation for BT 0x114e5000. Marking all 64 cachelines as ready.
+ 677000: system.cxl_controller.mem_port: Final block 0x114e5000 received, BT translation complete. Sending cache fill.
+ 677000: system.cxl_controller: Sending cache fill request for block 0x114e5000
+ 677000: system.cxl_controller: Filling cache fill request for block 0x114e5000 with pattern.
+ 677000: system.cxl_controller: Successfully sent cache fill request for block 0x114e5000
+ 677000: system.cxl_controller.mem_port: Deleting memPkt 0x56240a20b760 for CXLReq 0x56240d28a000 after DecompEngine response.
+ 688666: system.decompbus.respLayer0: XBar system.decompbus layer system.decompbus.respLayer0 busy: state=BUSY waitingForPeer=none
+ 694500: system.decompbus.respLayer0: XBar system.decompbus layer system.decompbus.respLayer0 busy: state=BUSY waitingForPeer=none
+ 697000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2e7290, pkt addr 0x7dffe000, size 4, cmd ReadResp)
+ 697000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7dffe000 with 1 ready cachelines (pkt 0x56240d2e7290)
+ 697000: system.cxl_controller: Received readiness update for block 0x7dffe000: 1 cachelines ready
+ 707000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2abe40, pkt addr 0x7dffe000, size 4, cmd ReadResp)
+ 707000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7dffe000 with 3 ready cachelines (pkt 0x56240d2abe40)
+ 707000: system.cxl_controller: Received readiness update for block 0x7dffe000: 3 cachelines ready
+ 717000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2abef0, pkt addr 0x7dffe000, size 4, cmd ReadResp)
+ 717000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7dffe000 with 5 ready cachelines (pkt 0x56240d2abef0)
+ 717000: system.cxl_controller: Received readiness update for block 0x7dffe000: 5 cachelines ready
+ 727000: system.cxl_controller.cache_port: CachePort: Received response for addr 0x114e5000 (block 0x114e5000), pkt cmd WriteResp
+ 727000: system.cxl_controller.cache_port: CachePort: Received cache fill response for addr 0x114e5000
+ 727000: system.cxl_controller.cache_port: CachePort: Cache fill for BlockTracker 0x114e5000
+ 727000: system.cxl_controller: Received cache fill response for block 0x114e5000
+ 727000: global: Scheduling completion for all remaining reqs, req 0x56240d28a000 (addr 0xa114e5dc0) at tick 777000
+ 727000: system.cxl_controller: Scheduling cleanup of block tracker for 0x114e5000
+ 727000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2abb80, pkt addr 0x7dffe000, size 4, cmd ReadResp)
+ 727000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7dffe000 with 7 ready cachelines (pkt 0x56240d2abb80)
+ 727000: system.cxl_controller: Received readiness update for block 0x7dffe000: 7 cachelines ready
+ 732000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2abb80, pkt addr 0x7dffe000, size 4, cmd ReadResp)
+ 732000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7dffe000 with 9 ready cachelines (pkt 0x56240d2abb80)
+ 732000: system.cxl_controller: Received readiness update for block 0x7dffe000: 9 cachelines ready
+ 737000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2b80b0, pkt addr 0x7dffe000, size 4, cmd ReadResp)
+ 737000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7dffe000 with 11 ready cachelines (pkt 0x56240d2b80b0)
+ 737000: system.cxl_controller: Received readiness update for block 0x7dffe000: 11 cachelines ready
+ 747000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2b8160, pkt addr 0x7dffe000, size 4, cmd ReadResp)
+ 747000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7dffe000 with 13 ready cachelines (pkt 0x56240d2b8160)
+ 747000: system.cxl_controller: Received readiness update for block 0x7dffe000: 13 cachelines ready
+ 757000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2b8210, pkt addr 0x7dffe000, size 4, cmd ReadResp)
+ 757000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7dffe000 with 15 ready cachelines (pkt 0x56240d2b8210)
+ 757000: system.cxl_controller: Received readiness update for block 0x7dffe000: 15 cachelines ready
+ 767000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2b82c0, pkt addr 0x7dffe000, size 4, cmd ReadResp)
+ 767000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7dffe000 with 16 ready cachelines (pkt 0x56240d2b82c0)
+ 767000: system.cxl_controller: Received readiness update for block 0x7dffe000: 16 cachelines ready
+ 777000: system.cxl_controller: Completed CXL Request: Read Address: 0xa114e5dc0 Time: 0.061 us Ratio: 50.80 Latency: 716.00 ns (cache miss) (Req: 0x56240d28a000)
+ 787000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2b8370, pkt addr 0xfac4e000, size 4, cmd ReadResp)
+ 787000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xfac4e000 with 2 ready cachelines (pkt 0x56240d2b8370)
+ 787000: system.cxl_controller: Received readiness update for block 0xfac4e000: 2 cachelines ready
+ 797000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2b8420, pkt addr 0xfac4e000, size 4, cmd ReadResp)
+ 797000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xfac4e000 with 4 ready cachelines (pkt 0x56240d2b8420)
+ 797000: system.cxl_controller: Received readiness update for block 0xfac4e000: 4 cachelines ready
+ 802000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2b8420, pkt addr 0x7dffe000, size 4, cmd ReadResp)
+ 802000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7dffe000 with 18 ready cachelines (pkt 0x56240d2b8420)
+ 802000: system.cxl_controller: Received readiness update for block 0x7dffe000: 18 cachelines ready
+ 807000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2b84d0, pkt addr 0x7dffe000, size 4, cmd ReadResp)
+ 807000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7dffe000 with 20 ready cachelines (pkt 0x56240d2b84d0)
+ 807000: system.cxl_controller: Received readiness update for block 0x7dffe000: 20 cachelines ready
+ 827000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2b8630, pkt addr 0xfac4e000, size 4, cmd ReadResp)
+ 827000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xfac4e000 with 6 ready cachelines (pkt 0x56240d2b8630)
+ 827000: system.cxl_controller: Received readiness update for block 0xfac4e000: 6 cachelines ready
+ 837000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2b86e0, pkt addr 0xfac4e000, size 4, cmd ReadResp)
+ 837000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xfac4e000 with 8 ready cachelines (pkt 0x56240d2b86e0)
+ 837000: system.cxl_controller: Received readiness update for block 0xfac4e000: 8 cachelines ready
+ 842000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2b86e0, pkt addr 0x7dffe000, size 4, cmd ReadResp)
+ 842000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7dffe000 with 22 ready cachelines (pkt 0x56240d2b86e0)
+ 842000: system.cxl_controller: Received readiness update for block 0x7dffe000: 22 cachelines ready
+ 847000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2b8790, pkt addr 0x7dffe000, size 4, cmd ReadResp)
+ 847000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7dffe000 with 24 ready cachelines (pkt 0x56240d2b8790)
+ 847000: system.cxl_controller: Received readiness update for block 0x7dffe000: 24 cachelines ready
+ 857000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2b8840, pkt addr 0xfac4e000, size 4, cmd ReadResp)
+ 857000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xfac4e000 with 10 ready cachelines (pkt 0x56240d2b8840)
+ 857000: system.cxl_controller: Received readiness update for block 0xfac4e000: 10 cachelines ready
+ 867000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2b88f0, pkt addr 0xfac4e000, size 4, cmd ReadResp)
+ 867000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xfac4e000 with 12 ready cachelines (pkt 0x56240d2b88f0)
+ 867000: system.cxl_controller: Received readiness update for block 0xfac4e000: 12 cachelines ready
+ 877000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2b89a0, pkt addr 0x7dffe000, size 4, cmd ReadResp)
+ 877000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7dffe000 with 26 ready cachelines (pkt 0x56240d2b89a0)
+ 877000: system.cxl_controller: Received readiness update for block 0x7dffe000: 26 cachelines ready
+ 887000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2b8a50, pkt addr 0x7dffe000, size 4, cmd ReadResp)
+ 887000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7dffe000 with 28 ready cachelines (pkt 0x56240d2b8a50)
+ 887000: system.cxl_controller: Received readiness update for block 0x7dffe000: 28 cachelines ready
+ 897000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2b8b00, pkt addr 0xfac4e000, size 4, cmd ReadResp)
+ 897000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xfac4e000 with 14 ready cachelines (pkt 0x56240d2b8b00)
+ 897000: system.cxl_controller: Received readiness update for block 0xfac4e000: 14 cachelines ready
+ 907000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2b8bb0, pkt addr 0xfac4e000, size 4, cmd ReadResp)
+ 907000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xfac4e000 with 16 ready cachelines (pkt 0x56240d2b8bb0)
+ 907000: system.cxl_controller: Received readiness update for block 0xfac4e000: 16 cachelines ready
+ 917000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2b8c60, pkt addr 0x7dffe000, size 4, cmd ReadResp)
+ 917000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7dffe000 with 30 ready cachelines (pkt 0x56240d2b8c60)
+ 917000: system.cxl_controller: Received readiness update for block 0x7dffe000: 30 cachelines ready
+ 927000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2b8d10, pkt addr 0x7dffe000, size 4, cmd ReadResp)
+ 927000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7dffe000 with 32 ready cachelines (pkt 0x56240d2b8d10)
+ 927000: system.cxl_controller: Received readiness update for block 0x7dffe000: 32 cachelines ready
+ 937000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2b8dc0, pkt addr 0xfac4e000, size 4, cmd ReadResp)
+ 937000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xfac4e000 with 18 ready cachelines (pkt 0x56240d2b8dc0)
+ 937000: system.cxl_controller: Received readiness update for block 0xfac4e000: 18 cachelines ready
+ 947000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2b8e70, pkt addr 0xfac4e000, size 4, cmd ReadResp)
+ 947000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xfac4e000 with 20 ready cachelines (pkt 0x56240d2b8e70)
+ 947000: system.cxl_controller: Received readiness update for block 0xfac4e000: 20 cachelines ready
+ 957000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2b8f20, pkt addr 0x7dffe000, size 4, cmd ReadResp)
+ 957000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7dffe000 with 33 ready cachelines (pkt 0x56240d2b8f20)
+ 957000: system.cxl_controller: Received readiness update for block 0x7dffe000: 33 cachelines ready
+ 967000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2b8fd0, pkt addr 0x7dffe000, size 4, cmd ReadResp)
+ 967000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7dffe000 with 35 ready cachelines (pkt 0x56240d2b8fd0)
+ 967000: system.cxl_controller: Received readiness update for block 0x7dffe000: 35 cachelines ready
+ 977000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240a20bb80, pkt addr 0xfac4e000, size 4, cmd ReadResp)
+ 977000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xfac4e000 with 22 ready cachelines (pkt 0x56240a20bb80)
+ 977000: system.cxl_controller: Received readiness update for block 0xfac4e000: 22 cachelines ready
+ 987000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2b9080, pkt addr 0xfac4e000, size 4, cmd ReadResp)
+ 987000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xfac4e000 with 24 ready cachelines (pkt 0x56240d2b9080)
+ 987000: system.cxl_controller: Received readiness update for block 0xfac4e000: 24 cachelines ready
+ 997000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2b9130, pkt addr 0x7dffe000, size 4, cmd ReadResp)
+ 997000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7dffe000 with 37 ready cachelines (pkt 0x56240d2b9130)
+ 997000: system.cxl_controller: Received readiness update for block 0x7dffe000: 37 cachelines ready
+1007000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2b91e0, pkt addr 0x7dffe000, size 4, cmd ReadResp)
+1007000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7dffe000 with 39 ready cachelines (pkt 0x56240d2b91e0)
+1007000: system.cxl_controller: Received readiness update for block 0x7dffe000: 39 cachelines ready
+1017000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2b9290, pkt addr 0xfac4e000, size 4, cmd ReadResp)
+1017000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xfac4e000 with 26 ready cachelines (pkt 0x56240d2b9290)
+1017000: system.cxl_controller: Received readiness update for block 0xfac4e000: 26 cachelines ready
+1027000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2b9340, pkt addr 0xfac4e000, size 4, cmd ReadResp)
+1027000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xfac4e000 with 28 ready cachelines (pkt 0x56240d2b9340)
+1027000: system.cxl_controller: Received readiness update for block 0xfac4e000: 28 cachelines ready
+1037000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2b8000, pkt addr 0x7dffe000, size 4, cmd ReadResp)
+1037000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7dffe000 with 41 ready cachelines (pkt 0x56240d2b8000)
+1037000: system.cxl_controller: Received readiness update for block 0x7dffe000: 41 cachelines ready
+1047000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2b94a0, pkt addr 0x7dffe000, size 4, cmd ReadResp)
+1047000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7dffe000 with 43 ready cachelines (pkt 0x56240d2b94a0)
+1047000: system.cxl_controller: Received readiness update for block 0x7dffe000: 43 cachelines ready
+1057000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2b9550, pkt addr 0xfac4e000, size 4, cmd ReadResp)
+1057000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xfac4e000 with 30 ready cachelines (pkt 0x56240d2b9550)
+1057000: system.cxl_controller: Received readiness update for block 0xfac4e000: 30 cachelines ready
+1067000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2b9600, pkt addr 0xfac4e000, size 4, cmd ReadResp)
+1067000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xfac4e000 with 32 ready cachelines (pkt 0x56240d2b9600)
+1067000: system.cxl_controller: Received readiness update for block 0xfac4e000: 32 cachelines ready
+1077000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2b96b0, pkt addr 0x7dffe000, size 4, cmd ReadResp)
+1077000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7dffe000 with 45 ready cachelines (pkt 0x56240d2b96b0)
+1077000: system.cxl_controller: Received readiness update for block 0x7dffe000: 45 cachelines ready
+1087000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2b9760, pkt addr 0x7dffe000, size 4, cmd ReadResp)
+1087000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7dffe000 with 47 ready cachelines (pkt 0x56240d2b9760)
+1087000: system.cxl_controller: Received readiness update for block 0x7dffe000: 47 cachelines ready
+1097000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2b9810, pkt addr 0xfac4e000, size 4, cmd ReadResp)
+1097000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xfac4e000 with 34 ready cachelines (pkt 0x56240d2b9810)
+1097000: system.cxl_controller: Received readiness update for block 0xfac4e000: 34 cachelines ready
+1107000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2b98c0, pkt addr 0xfac4e000, size 4, cmd ReadResp)
+1107000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xfac4e000 with 36 ready cachelines (pkt 0x56240d2b98c0)
+1107000: system.cxl_controller: Received readiness update for block 0xfac4e000: 36 cachelines ready
+1117000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2b9970, pkt addr 0x7dffe000, size 4, cmd ReadResp)
+1117000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7dffe000 with 48 ready cachelines (pkt 0x56240d2b9970)
+1117000: system.cxl_controller: Received readiness update for block 0x7dffe000: 48 cachelines ready
+1127000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2b9a20, pkt addr 0x7dffe000, size 4, cmd ReadResp)
+1127000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7dffe000 with 50 ready cachelines (pkt 0x56240d2b9a20)
+1127000: system.cxl_controller: Received readiness update for block 0x7dffe000: 50 cachelines ready
+1137000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2b9ad0, pkt addr 0xfac4e000, size 4, cmd ReadResp)
+1137000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xfac4e000 with 38 ready cachelines (pkt 0x56240d2b9ad0)
+1137000: system.cxl_controller: Received readiness update for block 0xfac4e000: 38 cachelines ready
+1147000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2b9b80, pkt addr 0xfac4e000, size 4, cmd ReadResp)
+1147000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xfac4e000 with 40 ready cachelines (pkt 0x56240d2b9b80)
+1147000: system.cxl_controller: Received readiness update for block 0xfac4e000: 40 cachelines ready
+1157000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240a20bc30, pkt addr 0x7dffe000, size 4, cmd ReadResp)
+1157000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7dffe000 with 52 ready cachelines (pkt 0x56240a20bc30)
+1157000: system.cxl_controller: Received readiness update for block 0x7dffe000: 52 cachelines ready
+1167000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2b9ce0, pkt addr 0x7dffe000, size 4, cmd ReadResp)
+1167000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7dffe000 with 54 ready cachelines (pkt 0x56240d2b9ce0)
+1167000: system.cxl_controller: Received readiness update for block 0x7dffe000: 54 cachelines ready
+1177000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2b9d90, pkt addr 0xfac4e000, size 4, cmd ReadResp)
+1177000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xfac4e000 with 42 ready cachelines (pkt 0x56240d2b9d90)
+1177000: system.cxl_controller: Received readiness update for block 0xfac4e000: 42 cachelines ready
+1187000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2b9e40, pkt addr 0xfac4e000, size 4, cmd ReadResp)
+1187000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xfac4e000 with 44 ready cachelines (pkt 0x56240d2b9e40)
+1187000: system.cxl_controller: Received readiness update for block 0xfac4e000: 44 cachelines ready
+1197000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2b9e40, pkt addr 0x7dffe000, size 4, cmd ReadResp)
+1197000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7dffe000 with 56 ready cachelines (pkt 0x56240d2b9e40)
+1197000: system.cxl_controller: Received readiness update for block 0x7dffe000: 56 cachelines ready
+1207000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2b9ef0, pkt addr 0x7dffe000, size 4, cmd ReadResp)
+1207000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7dffe000 with 58 ready cachelines (pkt 0x56240d2b9ef0)
+1207000: system.cxl_controller: Received readiness update for block 0x7dffe000: 58 cachelines ready
+1217000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c2000, pkt addr 0xfac4e000, size 4, cmd ReadResp)
+1217000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xfac4e000 with 46 ready cachelines (pkt 0x56240d2c2000)
+1217000: system.cxl_controller: Received readiness update for block 0xfac4e000: 46 cachelines ready
+1227000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c20b0, pkt addr 0xfac4e000, size 4, cmd ReadResp)
+1227000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xfac4e000 with 48 ready cachelines (pkt 0x56240d2c20b0)
+1227000: system.cxl_controller: Received readiness update for block 0xfac4e000: 48 cachelines ready
+1234500: system.decompbus.respLayer0: XBar system.decompbus layer system.decompbus.respLayer0 busy: state=BUSY waitingForPeer=none
+1237000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c2160, pkt addr 0x7dffe000, size 4, cmd ReadResp)
+1237000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7dffe000 with 60 ready cachelines (pkt 0x56240d2c2160)
+1237000: system.cxl_controller: Received readiness update for block 0x7dffe000: 60 cachelines ready
+1244500: system.decompbus.respLayer0: XBar system.decompbus layer system.decompbus.respLayer0 busy: state=BUSY waitingForPeer=none
+1247000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c22c0, pkt addr 0x7dffe000, size 4, cmd ReadResp)
+1247000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7dffe000 with 62 ready cachelines (pkt 0x56240d2c22c0)
+1247000: system.cxl_controller: Received readiness update for block 0x7dffe000: 62 cachelines ready
+1257000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c2370, pkt addr 0xfac4e000, size 4, cmd ReadResp)
+1257000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xfac4e000 with 50 ready cachelines (pkt 0x56240d2c2370)
+1257000: system.cxl_controller: Received readiness update for block 0xfac4e000: 50 cachelines ready
+1267000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240a20bce0, pkt addr 0xfac4e000, size 4, cmd ReadResp)
+1267000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xfac4e000 with 52 ready cachelines (pkt 0x56240a20bce0)
+1267000: system.cxl_controller: Received readiness update for block 0xfac4e000: 52 cachelines ready
+1277000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240a20b6b0, pkt addr 0x7dffe000, size 2176, cmd ReadResp)
+1277000: system.cxl_controller.mem_port: Received final data block confirmation from DecompEngine for CXLReq 0x56240d28a080 (orig CXL addr 0xe7dffe100), using its memPkt 0x56240a20b6b0. Size: 2176, Cmd: ReadResp
+1277000: system.cxl_controller.mem_port: Removing CXLReq 0x56240d28a080 from outstandingMemReqs (key 0x7dffe000) as final confirmation received.
+1277000: system.cxl_controller.mem_port: Final block confirmation for BT 0x7dffe000. Marking all 64 cachelines as ready.
+1277000: system.cxl_controller.mem_port: Final block 0x7dffe000 received, BT translation complete. Sending cache fill.
+1277000: system.cxl_controller: Sending cache fill request for block 0x7dffe000
+1277000: system.cxl_controller: Filling cache fill request for block 0x7dffe000 with pattern.
+1277000: system.cxl_controller: Successfully sent cache fill request for block 0x7dffe000
+1277000: system.cxl_controller.mem_port: Deleting memPkt 0x56240a20b6b0 for CXLReq 0x56240d28a080 after DecompEngine response.
+1287000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c24d0, pkt addr 0xfac4e000, size 4, cmd ReadResp)
+1287000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xfac4e000 with 54 ready cachelines (pkt 0x56240d2c24d0)
+1287000: system.cxl_controller: Received readiness update for block 0xfac4e000: 54 cachelines ready
+1297000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c2580, pkt addr 0xfac4e000, size 4, cmd ReadResp)
+1297000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xfac4e000 with 56 ready cachelines (pkt 0x56240d2c2580)
+1297000: system.cxl_controller: Received readiness update for block 0xfac4e000: 56 cachelines ready
+1307000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c2630, pkt addr 0xfac4e000, size 4, cmd ReadResp)
+1307000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xfac4e000 with 58 ready cachelines (pkt 0x56240d2c2630)
+1307000: system.cxl_controller: Received readiness update for block 0xfac4e000: 58 cachelines ready
+1317000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240a20bd90, pkt addr 0xfac4e000, size 4, cmd ReadResp)
+1317000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xfac4e000 with 60 ready cachelines (pkt 0x56240a20bd90)
+1317000: system.cxl_controller: Received readiness update for block 0xfac4e000: 60 cachelines ready
+1327000: system.cxl_controller.cache_port: CachePort: Received response for addr 0x7dffe000 (block 0x7dffe000), pkt cmd WriteResp
+1327000: system.cxl_controller.cache_port: CachePort: Received cache fill response for addr 0x7dffe000
+1327000: system.cxl_controller.cache_port: CachePort: Cache fill for BlockTracker 0x7dffe000
+1327000: system.cxl_controller: Received cache fill response for block 0x7dffe000
+1327000: global: Scheduling completion for all remaining reqs, req 0x56240d28a080 (addr 0xe7dffe100) at tick 1377000
+1327000: system.cxl_controller: Scheduling cleanup of block tracker for 0x7dffe000
+1327000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c2420, pkt addr 0xfac4e000, size 4, cmd ReadResp)
+1327000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xfac4e000 with 62 ready cachelines (pkt 0x56240d2c2420)
+1327000: system.cxl_controller: Received readiness update for block 0xfac4e000: 62 cachelines ready
+1337000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240a20b550, pkt addr 0xfac4e000, size 2048, cmd ReadResp)
+1337000: system.cxl_controller.mem_port: Received final data block confirmation from DecompEngine for CXLReq 0x56240d28a100 (orig CXL addr 0xefac4e1c0), using its memPkt 0x56240a20b550. Size: 2048, Cmd: ReadResp
+1337000: system.cxl_controller.mem_port: Removing CXLReq 0x56240d28a100 from outstandingMemReqs (key 0xfac4e000) as final confirmation received.
+1337000: system.cxl_controller.mem_port: Final block confirmation for BT 0xfac4e000. Marking all 64 cachelines as ready.
+1337000: system.cxl_controller.mem_port: Final block 0xfac4e000 received, BT translation complete. Sending cache fill.
+1337000: system.cxl_controller: Sending cache fill request for block 0xfac4e000
+1337000: system.cxl_controller: Filling cache fill request for block 0xfac4e000 with pattern.
+1337000: system.cxl_controller: Successfully sent cache fill request for block 0xfac4e000
+1337000: system.cxl_controller.mem_port: Deleting memPkt 0x56240a20b550 for CXLReq 0x56240d28a100 after DecompEngine response.
+1357000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c28f0, pkt addr 0x7f029000, size 4, cmd ReadResp)
+1357000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7f029000 with 1 ready cachelines (pkt 0x56240d2c28f0)
+1357000: system.cxl_controller: Received readiness update for block 0x7f029000: 1 cachelines ready
+1367000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240a20be40, pkt addr 0x7f029000, size 4, cmd ReadResp)
+1367000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7f029000 with 3 ready cachelines (pkt 0x56240a20be40)
+1367000: system.cxl_controller: Received readiness update for block 0x7f029000: 3 cachelines ready
+1377000: system.cxl_controller: Completed CXL Request: Read Address: 0xe7dffe100 Time: 0.099 us Ratio: 53.10 Latency: 1278.00 ns (cache miss) (Req: 0x56240d28a080)
+1377000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c29a0, pkt addr 0x7f029000, size 4, cmd ReadResp)
+1377000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7f029000 with 5 ready cachelines (pkt 0x56240d2c29a0)
+1377000: system.cxl_controller: Received readiness update for block 0x7f029000: 5 cachelines ready
+1387000: system.cxl_controller.cache_port: CachePort: Received response for addr 0xfac4e000 (block 0xfac4e000), pkt cmd WriteResp
+1387000: system.cxl_controller.cache_port: CachePort: Received cache fill response for addr 0xfac4e000
+1387000: system.cxl_controller.cache_port: CachePort: Cache fill for BlockTracker 0xfac4e000
+1387000: system.cxl_controller: Received cache fill response for block 0xfac4e000
+1387000: global: Scheduling completion for all remaining reqs, req 0x56240d28a100 (addr 0xefac4e1c0) at tick 1437000
+1387000: system.cxl_controller: Scheduling cleanup of block tracker for 0xfac4e000
+1387000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c2790, pkt addr 0x7f029000, size 4, cmd ReadResp)
+1387000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7f029000 with 7 ready cachelines (pkt 0x56240d2c2790)
+1387000: system.cxl_controller: Received readiness update for block 0x7f029000: 7 cachelines ready
+1392000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c2790, pkt addr 0x7f029000, size 4, cmd ReadResp)
+1392000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7f029000 with 9 ready cachelines (pkt 0x56240d2c2790)
+1392000: system.cxl_controller: Received readiness update for block 0x7f029000: 9 cachelines ready
+1397000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c2b00, pkt addr 0x7f029000, size 4, cmd ReadResp)
+1397000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7f029000 with 10 ready cachelines (pkt 0x56240d2c2b00)
+1397000: system.cxl_controller: Received readiness update for block 0x7f029000: 10 cachelines ready
+1407000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c2bb0, pkt addr 0x7f029000, size 4, cmd ReadResp)
+1407000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7f029000 with 12 ready cachelines (pkt 0x56240d2c2bb0)
+1407000: system.cxl_controller: Received readiness update for block 0x7f029000: 12 cachelines ready
+1417000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c2c60, pkt addr 0x7f029000, size 4, cmd ReadResp)
+1417000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7f029000 with 14 ready cachelines (pkt 0x56240d2c2c60)
+1417000: system.cxl_controller: Received readiness update for block 0x7f029000: 14 cachelines ready
+1427000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c2d10, pkt addr 0x7f029000, size 4, cmd ReadResp)
+1427000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7f029000 with 16 ready cachelines (pkt 0x56240d2c2d10)
+1427000: system.cxl_controller: Received readiness update for block 0x7f029000: 16 cachelines ready
+1437000: system.cxl_controller: Completed CXL Request: Read Address: 0xefac4e1c0 Time: 0.107 us Ratio: 48.80 Latency: 1330.00 ns (cache miss) (Req: 0x56240d28a100)
+1437000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c2dc0, pkt addr 0x7f029000, size 4, cmd ReadResp)
+1437000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7f029000 with 18 ready cachelines (pkt 0x56240d2c2dc0)
+1437000: system.cxl_controller: Received readiness update for block 0x7f029000: 18 cachelines ready
+1447000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c2e70, pkt addr 0x7f029000, size 4, cmd ReadResp)
+1447000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7f029000 with 20 ready cachelines (pkt 0x56240d2c2e70)
+1447000: system.cxl_controller: Received readiness update for block 0x7f029000: 20 cachelines ready
+1457000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c2f20, pkt addr 0x7f029000, size 4, cmd ReadResp)
+1457000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7f029000 with 21 ready cachelines (pkt 0x56240d2c2f20)
+1457000: system.cxl_controller: Received readiness update for block 0x7f029000: 21 cachelines ready
+1467000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240a20bef0, pkt addr 0x7f029000, size 4, cmd ReadResp)
+1467000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7f029000 with 23 ready cachelines (pkt 0x56240a20bef0)
+1467000: system.cxl_controller: Received readiness update for block 0x7f029000: 23 cachelines ready
+1477000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c2fd0, pkt addr 0x7f029000, size 4, cmd ReadResp)
+1477000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7f029000 with 25 ready cachelines (pkt 0x56240d2c2fd0)
+1477000: system.cxl_controller: Received readiness update for block 0x7f029000: 25 cachelines ready
+1487000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c3080, pkt addr 0x7f029000, size 4, cmd ReadResp)
+1487000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7f029000 with 27 ready cachelines (pkt 0x56240d2c3080)
+1487000: system.cxl_controller: Received readiness update for block 0x7f029000: 27 cachelines ready
+1497000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c3130, pkt addr 0x7f029000, size 4, cmd ReadResp)
+1497000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7f029000 with 29 ready cachelines (pkt 0x56240d2c3130)
+1497000: system.cxl_controller: Received readiness update for block 0x7f029000: 29 cachelines ready
+1507000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c31e0, pkt addr 0x7f029000, size 4, cmd ReadResp)
+1507000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7f029000 with 31 ready cachelines (pkt 0x56240d2c31e0)
+1507000: system.cxl_controller: Received readiness update for block 0x7f029000: 31 cachelines ready
+1517000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c3340, pkt addr 0x7f029000, size 4, cmd ReadResp)
+1517000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7f029000 with 32 ready cachelines (pkt 0x56240d2c3340)
+1517000: system.cxl_controller: Received readiness update for block 0x7f029000: 32 cachelines ready
+1527000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c33f0, pkt addr 0x7f029000, size 4, cmd ReadResp)
+1527000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7f029000 with 34 ready cachelines (pkt 0x56240d2c33f0)
+1527000: system.cxl_controller: Received readiness update for block 0x7f029000: 34 cachelines ready
+1537000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c34a0, pkt addr 0x7f029000, size 4, cmd ReadResp)
+1537000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7f029000 with 36 ready cachelines (pkt 0x56240d2c34a0)
+1537000: system.cxl_controller: Received readiness update for block 0x7f029000: 36 cachelines ready
+1547000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c34a0, pkt addr 0x7f029000, size 4, cmd ReadResp)
+1547000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7f029000 with 38 ready cachelines (pkt 0x56240d2c34a0)
+1547000: system.cxl_controller: Received readiness update for block 0x7f029000: 38 cachelines ready
+1557000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c34a0, pkt addr 0x7f029000, size 4, cmd ReadResp)
+1557000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7f029000 with 40 ready cachelines (pkt 0x56240d2c34a0)
+1557000: system.cxl_controller: Received readiness update for block 0x7f029000: 40 cachelines ready
+1567000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aa000, pkt addr 0x7f029000, size 4, cmd ReadResp)
+1567000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7f029000 with 42 ready cachelines (pkt 0x56240d2aa000)
+1567000: system.cxl_controller: Received readiness update for block 0x7f029000: 42 cachelines ready
+1577000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c3550, pkt addr 0x7f029000, size 4, cmd ReadResp)
+1577000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7f029000 with 43 ready cachelines (pkt 0x56240d2c3550)
+1577000: system.cxl_controller: Received readiness update for block 0x7f029000: 43 cachelines ready
+1584500: system.decompbus.respLayer0: XBar system.decompbus layer system.decompbus.respLayer0 busy: state=BUSY waitingForPeer=none
+1587000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aa160, pkt addr 0x7f029000, size 4, cmd ReadResp)
+1587000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7f029000 with 45 ready cachelines (pkt 0x56240d2aa160)
+1587000: system.cxl_controller: Received readiness update for block 0x7f029000: 45 cachelines ready
+1594500: system.decompbus.respLayer0: XBar system.decompbus layer system.decompbus.respLayer0 busy: state=BUSY waitingForPeer=none
+1594500: system.decompbus.respLayer0: XBar system.decompbus layer system.decompbus.respLayer0 busy: state=BUSY waitingForPeer=none
+1597000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c3760, pkt addr 0x7f029000, size 4, cmd ReadResp)
+1597000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7f029000 with 47 ready cachelines (pkt 0x56240d2c3760)
+1597000: system.cxl_controller: Received readiness update for block 0x7f029000: 47 cachelines ready
+1604500: system.decompbus.respLayer0: XBar system.decompbus layer system.decompbus.respLayer0 busy: state=BUSY waitingForPeer=none
+1607000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c3810, pkt addr 0x7f029000, size 4, cmd ReadResp)
+1607000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7f029000 with 49 ready cachelines (pkt 0x56240d2c3810)
+1607000: system.cxl_controller: Received readiness update for block 0x7f029000: 49 cachelines ready
+1617000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c38c0, pkt addr 0x7f029000, size 4, cmd ReadResp)
+1617000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7f029000 with 51 ready cachelines (pkt 0x56240d2c38c0)
+1617000: system.cxl_controller: Received readiness update for block 0x7f029000: 51 cachelines ready
+1627000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c3970, pkt addr 0x7f029000, size 4, cmd ReadResp)
+1627000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7f029000 with 53 ready cachelines (pkt 0x56240d2c3970)
+1627000: system.cxl_controller: Received readiness update for block 0x7f029000: 53 cachelines ready
+1637000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c3a20, pkt addr 0x7f029000, size 4, cmd ReadResp)
+1637000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7f029000 with 54 ready cachelines (pkt 0x56240d2c3a20)
+1637000: system.cxl_controller: Received readiness update for block 0x7f029000: 54 cachelines ready
+1647000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c3ad0, pkt addr 0x7f029000, size 4, cmd ReadResp)
+1647000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7f029000 with 56 ready cachelines (pkt 0x56240d2c3ad0)
+1647000: system.cxl_controller: Received readiness update for block 0x7f029000: 56 cachelines ready
+1657000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2b8000, pkt addr 0x7f029000, size 4, cmd ReadResp)
+1657000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7f029000 with 58 ready cachelines (pkt 0x56240d2b8000)
+1657000: system.cxl_controller: Received readiness update for block 0x7f029000: 58 cachelines ready
+1667000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c3c30, pkt addr 0x7f029000, size 4, cmd ReadResp)
+1667000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7f029000 with 60 ready cachelines (pkt 0x56240d2c3c30)
+1667000: system.cxl_controller: Received readiness update for block 0x7f029000: 60 cachelines ready
+1677000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c3ce0, pkt addr 0x7f029000, size 4, cmd ReadResp)
+1677000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x7f029000 with 62 ready cachelines (pkt 0x56240d2c3ce0)
+1677000: system.cxl_controller: Received readiness update for block 0x7f029000: 62 cachelines ready
+1687000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240a20ba20, pkt addr 0x7f029000, size 2240, cmd ReadResp)
+1687000: system.cxl_controller.mem_port: Received final data block confirmation from DecompEngine for CXLReq 0x56240d28a180 (orig CXL addr 0x87f029dc0), using its memPkt 0x56240a20ba20. Size: 2240, Cmd: ReadResp
+1687000: system.cxl_controller.mem_port: Removing CXLReq 0x56240d28a180 from outstandingMemReqs (key 0x7f029000) as final confirmation received.
+1687000: system.cxl_controller.mem_port: Final block confirmation for BT 0x7f029000. Marking all 64 cachelines as ready.
+1687000: system.cxl_controller.mem_port: Final block 0x7f029000 received, BT translation complete. Sending cache fill.
+1687000: system.cxl_controller: Sending cache fill request for block 0x7f029000
+1687000: system.cxl_controller: Filling cache fill request for block 0x7f029000 with pattern.
+1687000: system.cxl_controller: Successfully sent cache fill request for block 0x7f029000
+1687000: system.cxl_controller.mem_port: Deleting memPkt 0x56240a20ba20 for CXLReq 0x56240d28a180 after DecompEngine response.
+1717000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c8000, pkt addr 0x461e5000, size 4, cmd ReadResp)
+1717000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x461e5000 with 1 ready cachelines (pkt 0x56240d2c8000)
+1717000: system.cxl_controller: Received readiness update for block 0x461e5000: 1 cachelines ready
+1727000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c80b0, pkt addr 0x461e5000, size 4, cmd ReadResp)
+1727000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x461e5000 with 3 ready cachelines (pkt 0x56240d2c80b0)
+1727000: system.cxl_controller: Received readiness update for block 0x461e5000: 3 cachelines ready
+1737000: system.cxl_controller.cache_port: CachePort: Received response for addr 0x7f029000 (block 0x7f029000), pkt cmd WriteResp
+1737000: system.cxl_controller.cache_port: CachePort: Received cache fill response for addr 0x7f029000
+1737000: system.cxl_controller.cache_port: CachePort: Cache fill for BlockTracker 0x7f029000
+1737000: system.cxl_controller: Received cache fill response for block 0x7f029000
+1737000: global: Scheduling completion for all remaining reqs, req 0x56240d28a180 (addr 0x87f029dc0) at tick 1787000
+1737000: system.cxl_controller: Scheduling cleanup of block tracker for 0x7f029000
+1737000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aa210, pkt addr 0x461e5000, size 4, cmd ReadResp)
+1737000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x461e5000 with 5 ready cachelines (pkt 0x56240d2aa210)
+1737000: system.cxl_controller: Received readiness update for block 0x461e5000: 5 cachelines ready
+1742000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aa210, pkt addr 0x461e5000, size 4, cmd ReadResp)
+1742000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x461e5000 with 7 ready cachelines (pkt 0x56240d2aa210)
+1742000: system.cxl_controller: Received readiness update for block 0x461e5000: 7 cachelines ready
+1747000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c82c0, pkt addr 0x461e5000, size 4, cmd ReadResp)
+1747000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x461e5000 with 9 ready cachelines (pkt 0x56240d2c82c0)
+1747000: system.cxl_controller: Received readiness update for block 0x461e5000: 9 cachelines ready
+1752000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c82c0, pkt addr 0x461e5000, size 4, cmd ReadResp)
+1752000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x461e5000 with 10 ready cachelines (pkt 0x56240d2c82c0)
+1752000: system.cxl_controller: Received readiness update for block 0x461e5000: 10 cachelines ready
+1757000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c8370, pkt addr 0x461e5000, size 4, cmd ReadResp)
+1757000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x461e5000 with 12 ready cachelines (pkt 0x56240d2c8370)
+1757000: system.cxl_controller: Received readiness update for block 0x461e5000: 12 cachelines ready
+1767000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c8420, pkt addr 0x461e5000, size 4, cmd ReadResp)
+1767000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x461e5000 with 14 ready cachelines (pkt 0x56240d2c8420)
+1767000: system.cxl_controller: Received readiness update for block 0x461e5000: 14 cachelines ready
+1777000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c84d0, pkt addr 0x461e5000, size 4, cmd ReadResp)
+1777000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x461e5000 with 16 ready cachelines (pkt 0x56240d2c84d0)
+1777000: system.cxl_controller: Received readiness update for block 0x461e5000: 16 cachelines ready
+1787000: system.cxl_controller: Completed CXL Request: Read Address: 0x87f029dc0 Time: 0.138 us Ratio: 53.40 Latency: 1649.00 ns (cache miss) (Req: 0x56240d28a180)
+1787000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aa2c0, pkt addr 0x461e5000, size 4, cmd ReadResp)
+1787000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x461e5000 with 18 ready cachelines (pkt 0x56240d2aa2c0)
+1787000: system.cxl_controller: Received readiness update for block 0x461e5000: 18 cachelines ready
+1797000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c8580, pkt addr 0x461e5000, size 4, cmd ReadResp)
+1797000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x461e5000 with 20 ready cachelines (pkt 0x56240d2c8580)
+1797000: system.cxl_controller: Received readiness update for block 0x461e5000: 20 cachelines ready
+1807000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c8630, pkt addr 0x461e5000, size 4, cmd ReadResp)
+1807000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x461e5000 with 21 ready cachelines (pkt 0x56240d2c8630)
+1807000: system.cxl_controller: Received readiness update for block 0x461e5000: 21 cachelines ready
+1817000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c86e0, pkt addr 0x461e5000, size 4, cmd ReadResp)
+1817000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x461e5000 with 23 ready cachelines (pkt 0x56240d2c86e0)
+1817000: system.cxl_controller: Received readiness update for block 0x461e5000: 23 cachelines ready
+1827000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c8790, pkt addr 0x461e5000, size 4, cmd ReadResp)
+1827000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x461e5000 with 25 ready cachelines (pkt 0x56240d2c8790)
+1827000: system.cxl_controller: Received readiness update for block 0x461e5000: 25 cachelines ready
+1837000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c8840, pkt addr 0x461e5000, size 4, cmd ReadResp)
+1837000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x461e5000 with 27 ready cachelines (pkt 0x56240d2c8840)
+1837000: system.cxl_controller: Received readiness update for block 0x461e5000: 27 cachelines ready
+1847000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c88f0, pkt addr 0x461e5000, size 4, cmd ReadResp)
+1847000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x461e5000 with 29 ready cachelines (pkt 0x56240d2c88f0)
+1847000: system.cxl_controller: Received readiness update for block 0x461e5000: 29 cachelines ready
+1857000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c89a0, pkt addr 0x461e5000, size 4, cmd ReadResp)
+1857000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x461e5000 with 31 ready cachelines (pkt 0x56240d2c89a0)
+1857000: system.cxl_controller: Received readiness update for block 0x461e5000: 31 cachelines ready
+1867000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c8a50, pkt addr 0x461e5000, size 4, cmd ReadResp)
+1867000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x461e5000 with 32 ready cachelines (pkt 0x56240d2c8a50)
+1867000: system.cxl_controller: Received readiness update for block 0x461e5000: 32 cachelines ready
+1877000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c8b00, pkt addr 0x461e5000, size 4, cmd ReadResp)
+1877000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x461e5000 with 34 ready cachelines (pkt 0x56240d2c8b00)
+1877000: system.cxl_controller: Received readiness update for block 0x461e5000: 34 cachelines ready
+1887000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aa370, pkt addr 0x461e5000, size 4, cmd ReadResp)
+1887000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x461e5000 with 36 ready cachelines (pkt 0x56240d2aa370)
+1887000: system.cxl_controller: Received readiness update for block 0x461e5000: 36 cachelines ready
+1897000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aa370, pkt addr 0x461e5000, size 4, cmd ReadResp)
+1897000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x461e5000 with 38 ready cachelines (pkt 0x56240d2aa370)
+1897000: system.cxl_controller: Received readiness update for block 0x461e5000: 38 cachelines ready
+1907000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aa4d0, pkt addr 0x461e5000, size 4, cmd ReadResp)
+1907000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x461e5000 with 40 ready cachelines (pkt 0x56240d2aa4d0)
+1907000: system.cxl_controller: Received readiness update for block 0x461e5000: 40 cachelines ready
+1917000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aa420, pkt addr 0x461e5000, size 4, cmd ReadResp)
+1917000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x461e5000 with 42 ready cachelines (pkt 0x56240d2aa420)
+1917000: system.cxl_controller: Received readiness update for block 0x461e5000: 42 cachelines ready
+1927000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c8bb0, pkt addr 0x461e5000, size 4, cmd ReadResp)
+1927000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x461e5000 with 43 ready cachelines (pkt 0x56240d2c8bb0)
+1927000: system.cxl_controller: Received readiness update for block 0x461e5000: 43 cachelines ready
+1934500: system.decompbus.respLayer0: XBar system.decompbus layer system.decompbus.respLayer0 busy: state=BUSY waitingForPeer=none
+1937000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c8c60, pkt addr 0x461e5000, size 4, cmd ReadResp)
+1937000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x461e5000 with 45 ready cachelines (pkt 0x56240d2c8c60)
+1937000: system.cxl_controller: Received readiness update for block 0x461e5000: 45 cachelines ready
+1944500: system.decompbus.respLayer0: XBar system.decompbus layer system.decompbus.respLayer0 busy: state=BUSY waitingForPeer=none
+1947000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c8dc0, pkt addr 0x461e5000, size 4, cmd ReadResp)
+1947000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x461e5000 with 47 ready cachelines (pkt 0x56240d2c8dc0)
+1947000: system.cxl_controller: Received readiness update for block 0x461e5000: 47 cachelines ready
+1957000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c8e70, pkt addr 0x461e5000, size 4, cmd ReadResp)
+1957000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x461e5000 with 49 ready cachelines (pkt 0x56240d2c8e70)
+1957000: system.cxl_controller: Received readiness update for block 0x461e5000: 49 cachelines ready
+1967000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2b8000, pkt addr 0x461e5000, size 4, cmd ReadResp)
+1967000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x461e5000 with 51 ready cachelines (pkt 0x56240d2b8000)
+1967000: system.cxl_controller: Received readiness update for block 0x461e5000: 51 cachelines ready
+1977000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c8f20, pkt addr 0x461e5000, size 4, cmd ReadResp)
+1977000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x461e5000 with 53 ready cachelines (pkt 0x56240d2c8f20)
+1977000: system.cxl_controller: Received readiness update for block 0x461e5000: 53 cachelines ready
+1987000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c8fd0, pkt addr 0x461e5000, size 4, cmd ReadResp)
+1987000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x461e5000 with 54 ready cachelines (pkt 0x56240d2c8fd0)
+1987000: system.cxl_controller: Received readiness update for block 0x461e5000: 54 cachelines ready
+1997000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c9080, pkt addr 0x461e5000, size 4, cmd ReadResp)
+1997000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x461e5000 with 56 ready cachelines (pkt 0x56240d2c9080)
+1997000: system.cxl_controller: Received readiness update for block 0x461e5000: 56 cachelines ready
+2007000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c9130, pkt addr 0x461e5000, size 4, cmd ReadResp)
+2007000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x461e5000 with 58 ready cachelines (pkt 0x56240d2c9130)
+2007000: system.cxl_controller: Received readiness update for block 0x461e5000: 58 cachelines ready
+2017000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c91e0, pkt addr 0x461e5000, size 4, cmd ReadResp)
+2017000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x461e5000 with 60 ready cachelines (pkt 0x56240d2c91e0)
+2017000: system.cxl_controller: Received readiness update for block 0x461e5000: 60 cachelines ready
+2027000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c9290, pkt addr 0x461e5000, size 4, cmd ReadResp)
+2027000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x461e5000 with 62 ready cachelines (pkt 0x56240d2c9290)
+2027000: system.cxl_controller: Received readiness update for block 0x461e5000: 62 cachelines ready
+2037000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aa0b0, pkt addr 0x461e5000, size 2240, cmd ReadResp)
+2037000: system.cxl_controller.mem_port: Received final data block confirmation from DecompEngine for CXLReq 0x56240d28a200 (orig CXL addr 0xb461e5340), using its memPkt 0x56240d2aa0b0. Size: 2240, Cmd: ReadResp
+2037000: system.cxl_controller.mem_port: Removing CXLReq 0x56240d28a200 from outstandingMemReqs (key 0x461e5000) as final confirmation received.
+2037000: system.cxl_controller.mem_port: Final block confirmation for BT 0x461e5000. Marking all 64 cachelines as ready.
+2037000: system.cxl_controller.mem_port: Final block 0x461e5000 received, BT translation complete. Sending cache fill.
+2037000: system.cxl_controller: Sending cache fill request for block 0x461e5000
+2037000: system.cxl_controller: Filling cache fill request for block 0x461e5000 with pattern.
+2037000: system.cxl_controller: Successfully sent cache fill request for block 0x461e5000
+2037000: system.cxl_controller.mem_port: Deleting memPkt 0x56240d2aa0b0 for CXLReq 0x56240d28a200 after DecompEngine response.
+2057000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c94a0, pkt addr 0xac55a000, size 4, cmd ReadResp)
+2057000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xac55a000 with 2 ready cachelines (pkt 0x56240d2c94a0)
+2057000: system.cxl_controller: Received readiness update for block 0xac55a000: 2 cachelines ready
+2067000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aa630, pkt addr 0xac55a000, size 4, cmd ReadResp)
+2067000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xac55a000 with 4 ready cachelines (pkt 0x56240d2aa630)
+2067000: system.cxl_controller: Received readiness update for block 0xac55a000: 4 cachelines ready
+2077000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c9550, pkt addr 0xac55a000, size 4, cmd ReadResp)
+2077000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xac55a000 with 6 ready cachelines (pkt 0x56240d2c9550)
+2077000: system.cxl_controller: Received readiness update for block 0xac55a000: 6 cachelines ready
+2087000: system.cxl_controller.cache_port: CachePort: Received response for addr 0x461e5000 (block 0x461e5000), pkt cmd WriteResp
+2087000: system.cxl_controller.cache_port: CachePort: Received cache fill response for addr 0x461e5000
+2087000: system.cxl_controller.cache_port: CachePort: Cache fill for BlockTracker 0x461e5000
+2087000: system.cxl_controller: Received cache fill response for block 0x461e5000
+2087000: global: Scheduling completion for all remaining reqs, req 0x56240d28a200 (addr 0xb461e5340) at tick 2137000
+2087000: system.cxl_controller: Scheduling cleanup of block tracker for 0x461e5000
+2087000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c9340, pkt addr 0xac55a000, size 4, cmd ReadResp)
+2087000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xac55a000 with 8 ready cachelines (pkt 0x56240d2c9340)
+2087000: system.cxl_controller: Received readiness update for block 0xac55a000: 8 cachelines ready
+2092000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c9340, pkt addr 0xac55a000, size 4, cmd ReadResp)
+2092000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xac55a000 with 10 ready cachelines (pkt 0x56240d2c9340)
+2092000: system.cxl_controller: Received readiness update for block 0xac55a000: 10 cachelines ready
+2097000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c96b0, pkt addr 0xac55a000, size 4, cmd ReadResp)
+2097000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xac55a000 with 12 ready cachelines (pkt 0x56240d2c96b0)
+2097000: system.cxl_controller: Received readiness update for block 0xac55a000: 12 cachelines ready
+2107000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c9760, pkt addr 0xac55a000, size 4, cmd ReadResp)
+2107000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xac55a000 with 14 ready cachelines (pkt 0x56240d2c9760)
+2107000: system.cxl_controller: Received readiness update for block 0xac55a000: 14 cachelines ready
+2117000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c9810, pkt addr 0xac55a000, size 4, cmd ReadResp)
+2117000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xac55a000 with 16 ready cachelines (pkt 0x56240d2c9810)
+2117000: system.cxl_controller: Received readiness update for block 0xac55a000: 16 cachelines ready
+2127000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c98c0, pkt addr 0xac55a000, size 4, cmd ReadResp)
+2127000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xac55a000 with 18 ready cachelines (pkt 0x56240d2c98c0)
+2127000: system.cxl_controller: Received readiness update for block 0xac55a000: 18 cachelines ready
+2137000: system.cxl_controller: Completed CXL Request: Read Address: 0xb461e5340 Time: 0.171 us Ratio: 53.40 Latency: 1966.00 ns (cache miss) (Req: 0x56240d28a200)
+2137000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c9970, pkt addr 0xac55a000, size 4, cmd ReadResp)
+2137000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xac55a000 with 20 ready cachelines (pkt 0x56240d2c9970)
+2137000: system.cxl_controller: Received readiness update for block 0xac55a000: 20 cachelines ready
+2147000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c9a20, pkt addr 0xac55a000, size 4, cmd ReadResp)
+2147000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xac55a000 with 22 ready cachelines (pkt 0x56240d2c9a20)
+2147000: system.cxl_controller: Received readiness update for block 0xac55a000: 22 cachelines ready
+2157000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c9b80, pkt addr 0xac55a000, size 4, cmd ReadResp)
+2157000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xac55a000 with 24 ready cachelines (pkt 0x56240d2c9b80)
+2157000: system.cxl_controller: Received readiness update for block 0xac55a000: 24 cachelines ready
+2167000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aa6e0, pkt addr 0xac55a000, size 4, cmd ReadResp)
+2167000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xac55a000 with 26 ready cachelines (pkt 0x56240d2aa6e0)
+2167000: system.cxl_controller: Received readiness update for block 0xac55a000: 26 cachelines ready
+2177000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c9c30, pkt addr 0xac55a000, size 4, cmd ReadResp)
+2177000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xac55a000 with 28 ready cachelines (pkt 0x56240d2c9c30)
+2177000: system.cxl_controller: Received readiness update for block 0xac55a000: 28 cachelines ready
+2187000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c9ce0, pkt addr 0xac55a000, size 4, cmd ReadResp)
+2187000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xac55a000 with 30 ready cachelines (pkt 0x56240d2c9ce0)
+2187000: system.cxl_controller: Received readiness update for block 0xac55a000: 30 cachelines ready
+2197000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c9d90, pkt addr 0xac55a000, size 4, cmd ReadResp)
+2197000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xac55a000 with 33 ready cachelines (pkt 0x56240d2c9d90)
+2197000: system.cxl_controller: Received readiness update for block 0xac55a000: 33 cachelines ready
+2207000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c9d90, pkt addr 0xac55a000, size 4, cmd ReadResp)
+2207000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xac55a000 with 35 ready cachelines (pkt 0x56240d2c9d90)
+2207000: system.cxl_controller: Received readiness update for block 0xac55a000: 35 cachelines ready
+2217000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c9e40, pkt addr 0xac55a000, size 4, cmd ReadResp)
+2217000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xac55a000 with 37 ready cachelines (pkt 0x56240d2c9e40)
+2217000: system.cxl_controller: Received readiness update for block 0xac55a000: 37 cachelines ready
+2227000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c9ef0, pkt addr 0xac55a000, size 4, cmd ReadResp)
+2227000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xac55a000 with 39 ready cachelines (pkt 0x56240d2c9ef0)
+2227000: system.cxl_controller: Received readiness update for block 0xac55a000: 39 cachelines ready
+2237000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2d6000, pkt addr 0xac55a000, size 4, cmd ReadResp)
+2237000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xac55a000 with 41 ready cachelines (pkt 0x56240d2d6000)
+2237000: system.cxl_controller: Received readiness update for block 0xac55a000: 41 cachelines ready
+2244500: system.decompbus.respLayer0: XBar system.decompbus layer system.decompbus.respLayer0 busy: state=BUSY waitingForPeer=none
+2247000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aa790, pkt addr 0xac55a000, size 4, cmd ReadResp)
+2247000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xac55a000 with 43 ready cachelines (pkt 0x56240d2aa790)
+2247000: system.cxl_controller: Received readiness update for block 0xac55a000: 43 cachelines ready
+2254500: system.decompbus.respLayer0: XBar system.decompbus layer system.decompbus.respLayer0 busy: state=BUSY waitingForPeer=none
+2257000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2d6160, pkt addr 0xac55a000, size 4, cmd ReadResp)
+2257000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xac55a000 with 45 ready cachelines (pkt 0x56240d2d6160)
+2257000: system.cxl_controller: Received readiness update for block 0xac55a000: 45 cachelines ready
+2267000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2d6210, pkt addr 0xac55a000, size 4, cmd ReadResp)
+2267000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xac55a000 with 47 ready cachelines (pkt 0x56240d2d6210)
+2267000: system.cxl_controller: Received readiness update for block 0xac55a000: 47 cachelines ready
+2277000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240a20b760, pkt addr 0xac55a000, size 4, cmd ReadResp)
+2277000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xac55a000 with 49 ready cachelines (pkt 0x56240a20b760)
+2277000: system.cxl_controller: Received readiness update for block 0xac55a000: 49 cachelines ready
+2287000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2d6370, pkt addr 0xac55a000, size 4, cmd ReadResp)
+2287000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xac55a000 with 51 ready cachelines (pkt 0x56240d2d6370)
+2287000: system.cxl_controller: Received readiness update for block 0xac55a000: 51 cachelines ready
+2297000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2d6420, pkt addr 0xac55a000, size 4, cmd ReadResp)
+2297000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xac55a000 with 53 ready cachelines (pkt 0x56240d2d6420)
+2297000: system.cxl_controller: Received readiness update for block 0xac55a000: 53 cachelines ready
+2307000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2d64d0, pkt addr 0xac55a000, size 4, cmd ReadResp)
+2307000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xac55a000 with 55 ready cachelines (pkt 0x56240d2d64d0)
+2307000: system.cxl_controller: Received readiness update for block 0xac55a000: 55 cachelines ready
+2317000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2d6580, pkt addr 0xac55a000, size 4, cmd ReadResp)
+2317000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xac55a000 with 57 ready cachelines (pkt 0x56240d2d6580)
+2317000: system.cxl_controller: Received readiness update for block 0xac55a000: 57 cachelines ready
+2327000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2d6630, pkt addr 0xac55a000, size 4, cmd ReadResp)
+2327000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xac55a000 with 59 ready cachelines (pkt 0x56240d2d6630)
+2327000: system.cxl_controller: Received readiness update for block 0xac55a000: 59 cachelines ready
+2337000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aa840, pkt addr 0xac55a000, size 4, cmd ReadResp)
+2337000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xac55a000 with 61 ready cachelines (pkt 0x56240d2aa840)
+2337000: system.cxl_controller: Received readiness update for block 0xac55a000: 61 cachelines ready
+2347000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2b9c30, pkt addr 0xac55a000, size 1984, cmd ReadResp)
+2347000: system.cxl_controller.mem_port: Received final data block confirmation from DecompEngine for CXLReq 0x56240d28a280 (orig CXL addr 0xfac55a380), using its memPkt 0x56240d2b9c30. Size: 1984, Cmd: ReadResp
+2347000: system.cxl_controller.mem_port: Removing CXLReq 0x56240d28a280 from outstandingMemReqs (key 0xac55a000) as final confirmation received.
+2347000: system.cxl_controller.mem_port: Final block confirmation for BT 0xac55a000. Marking all 64 cachelines as ready.
+2347000: system.cxl_controller.mem_port: Final block 0xac55a000 received, BT translation complete. Sending cache fill.
+2347000: system.cxl_controller: Sending cache fill request for block 0xac55a000
+2347000: system.cxl_controller: Filling cache fill request for block 0xac55a000 with pattern.
+2347000: system.cxl_controller: Successfully sent cache fill request for block 0xac55a000
+2347000: system.cxl_controller.mem_port: Deleting memPkt 0x56240d2b9c30 for CXLReq 0x56240d28a280 after DecompEngine response.
+2367000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2d6840, pkt addr 0x32062000, size 4, cmd ReadResp)
+2367000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x32062000 with 1 ready cachelines (pkt 0x56240d2d6840)
+2367000: system.cxl_controller: Received readiness update for block 0x32062000: 1 cachelines ready
+2377000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2d68f0, pkt addr 0x32062000, size 4, cmd ReadResp)
+2377000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x32062000 with 3 ready cachelines (pkt 0x56240d2d68f0)
+2377000: system.cxl_controller: Received readiness update for block 0x32062000: 3 cachelines ready
+2387000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2d69a0, pkt addr 0x32062000, size 4, cmd ReadResp)
+2387000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x32062000 with 5 ready cachelines (pkt 0x56240d2d69a0)
+2387000: system.cxl_controller: Received readiness update for block 0x32062000: 5 cachelines ready
+2397000: system.cxl_controller.cache_port: CachePort: Received response for addr 0xac55a000 (block 0xac55a000), pkt cmd WriteResp
+2397000: system.cxl_controller.cache_port: CachePort: Received cache fill response for addr 0xac55a000
+2397000: system.cxl_controller.cache_port: CachePort: Cache fill for BlockTracker 0xac55a000
+2397000: system.cxl_controller: Received cache fill response for block 0xac55a000
+2397000: global: Scheduling completion for all remaining reqs, req 0x56240d28a280 (addr 0xfac55a380) at tick 2447000
+2397000: system.cxl_controller: Scheduling cleanup of block tracker for 0xac55a000
+2397000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2d66e0, pkt addr 0x32062000, size 4, cmd ReadResp)
+2397000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x32062000 with 7 ready cachelines (pkt 0x56240d2d66e0)
+2397000: system.cxl_controller: Received readiness update for block 0x32062000: 7 cachelines ready
+2402000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2d66e0, pkt addr 0x32062000, size 4, cmd ReadResp)
+2402000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x32062000 with 9 ready cachelines (pkt 0x56240d2d66e0)
+2402000: system.cxl_controller: Received readiness update for block 0x32062000: 9 cachelines ready
+2407000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2d6b00, pkt addr 0x32062000, size 4, cmd ReadResp)
+2407000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x32062000 with 11 ready cachelines (pkt 0x56240d2d6b00)
+2407000: system.cxl_controller: Received readiness update for block 0x32062000: 11 cachelines ready
+2417000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2d6bb0, pkt addr 0x32062000, size 4, cmd ReadResp)
+2417000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x32062000 with 13 ready cachelines (pkt 0x56240d2d6bb0)
+2417000: system.cxl_controller: Received readiness update for block 0x32062000: 13 cachelines ready
+2427000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2d6c60, pkt addr 0x32062000, size 4, cmd ReadResp)
+2427000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x32062000 with 15 ready cachelines (pkt 0x56240d2d6c60)
+2427000: system.cxl_controller: Received readiness update for block 0x32062000: 15 cachelines ready
+2437000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aa8f0, pkt addr 0x32062000, size 4, cmd ReadResp)
+2437000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x32062000 with 16 ready cachelines (pkt 0x56240d2aa8f0)
+2437000: system.cxl_controller: Received readiness update for block 0x32062000: 16 cachelines ready
+2447000: system.cxl_controller: Completed CXL Request: Read Address: 0xfac55a380 Time: 0.238 us Ratio: 47.40 Latency: 2209.00 ns (cache miss) (Req: 0x56240d28a280)
+2447000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2d6d10, pkt addr 0x32062000, size 4, cmd ReadResp)
+2447000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x32062000 with 18 ready cachelines (pkt 0x56240d2d6d10)
+2447000: system.cxl_controller: Received readiness update for block 0x32062000: 18 cachelines ready
+2457000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2d6dc0, pkt addr 0x32062000, size 4, cmd ReadResp)
+2457000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x32062000 with 20 ready cachelines (pkt 0x56240d2d6dc0)
+2457000: system.cxl_controller: Received readiness update for block 0x32062000: 20 cachelines ready
+2467000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2d6e70, pkt addr 0x32062000, size 4, cmd ReadResp)
+2467000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x32062000 with 22 ready cachelines (pkt 0x56240d2d6e70)
+2467000: system.cxl_controller: Received readiness update for block 0x32062000: 22 cachelines ready
+2477000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2d6e70, pkt addr 0x32062000, size 4, cmd ReadResp)
+2477000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x32062000 with 24 ready cachelines (pkt 0x56240d2d6e70)
+2477000: system.cxl_controller: Received readiness update for block 0x32062000: 24 cachelines ready
+2487000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2d6f20, pkt addr 0x32062000, size 4, cmd ReadResp)
+2487000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x32062000 with 26 ready cachelines (pkt 0x56240d2d6f20)
+2487000: system.cxl_controller: Received readiness update for block 0x32062000: 26 cachelines ready
+2494500: system.decompbus.respLayer0: XBar system.decompbus layer system.decompbus.respLayer0 busy: state=BUSY waitingForPeer=none
+2497000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2d6fd0, pkt addr 0x32062000, size 4, cmd ReadResp)
+2497000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x32062000 with 28 ready cachelines (pkt 0x56240d2d6fd0)
+2497000: system.cxl_controller: Received readiness update for block 0x32062000: 28 cachelines ready
+2504500: system.decompbus.respLayer0: XBar system.decompbus layer system.decompbus.respLayer0 busy: state=BUSY waitingForPeer=none
+2507000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2d7130, pkt addr 0x32062000, size 4, cmd ReadResp)
+2507000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x32062000 with 30 ready cachelines (pkt 0x56240d2d7130)
+2507000: system.cxl_controller: Received readiness update for block 0x32062000: 30 cachelines ready
+2517000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2d7130, pkt addr 0x32062000, size 4, cmd ReadResp)
+2517000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x32062000 with 32 ready cachelines (pkt 0x56240d2d7130)
+2517000: system.cxl_controller: Received readiness update for block 0x32062000: 32 cachelines ready
+2527000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2d71e0, pkt addr 0x32062000, size 4, cmd ReadResp)
+2527000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x32062000 with 33 ready cachelines (pkt 0x56240d2d71e0)
+2527000: system.cxl_controller: Received readiness update for block 0x32062000: 33 cachelines ready
+2534500: system.decompbus.respLayer0: XBar system.decompbus layer system.decompbus.respLayer0 busy: state=BUSY waitingForPeer=none
+2537000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2d7290, pkt addr 0x32062000, size 4, cmd ReadResp)
+2537000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x32062000 with 35 ready cachelines (pkt 0x56240d2d7290)
+2537000: system.cxl_controller: Received readiness update for block 0x32062000: 35 cachelines ready
+2544500: system.decompbus.respLayer0: XBar system.decompbus layer system.decompbus.respLayer0 busy: state=BUSY waitingForPeer=none
+2547000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2d73f0, pkt addr 0x32062000, size 4, cmd ReadResp)
+2547000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x32062000 with 37 ready cachelines (pkt 0x56240d2d73f0)
+2547000: system.cxl_controller: Received readiness update for block 0x32062000: 37 cachelines ready
+2557000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2d74a0, pkt addr 0x32062000, size 4, cmd ReadResp)
+2557000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x32062000 with 39 ready cachelines (pkt 0x56240d2d74a0)
+2557000: system.cxl_controller: Received readiness update for block 0x32062000: 39 cachelines ready
+2567000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2d7550, pkt addr 0x32062000, size 4, cmd ReadResp)
+2567000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x32062000 with 41 ready cachelines (pkt 0x56240d2d7550)
+2567000: system.cxl_controller: Received readiness update for block 0x32062000: 41 cachelines ready
+2577000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2d7600, pkt addr 0x32062000, size 4, cmd ReadResp)
+2577000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x32062000 with 43 ready cachelines (pkt 0x56240d2d7600)
+2577000: system.cxl_controller: Received readiness update for block 0x32062000: 43 cachelines ready
+2587000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2d7600, pkt addr 0x32062000, size 4, cmd ReadResp)
+2587000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x32062000 with 45 ready cachelines (pkt 0x56240d2d7600)
+2587000: system.cxl_controller: Received readiness update for block 0x32062000: 45 cachelines ready
+2597000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240a20b760, pkt addr 0x32062000, size 4, cmd ReadResp)
+2597000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x32062000 with 47 ready cachelines (pkt 0x56240a20b760)
+2597000: system.cxl_controller: Received readiness update for block 0x32062000: 47 cachelines ready
+2604500: system.decompbus.respLayer0: XBar system.decompbus layer system.decompbus.respLayer0 busy: state=BUSY waitingForPeer=none
+2607000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2d7810, pkt addr 0x32062000, size 4, cmd ReadResp)
+2607000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x32062000 with 48 ready cachelines (pkt 0x56240d2d7810)
+2607000: system.cxl_controller: Received readiness update for block 0x32062000: 48 cachelines ready
+2614500: system.decompbus.respLayer0: XBar system.decompbus layer system.decompbus.respLayer0 busy: state=BUSY waitingForPeer=none
+2617000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2d78c0, pkt addr 0x32062000, size 4, cmd ReadResp)
+2617000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x32062000 with 50 ready cachelines (pkt 0x56240d2d78c0)
+2617000: system.cxl_controller: Received readiness update for block 0x32062000: 50 cachelines ready
+2637000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2d7970, pkt addr 0xf4ecd000, size 4, cmd ReadResp)
+2637000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xf4ecd000 with 2 ready cachelines (pkt 0x56240d2d7970)
+2637000: system.cxl_controller: Received readiness update for block 0xf4ecd000: 2 cachelines ready
+2647000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2d7970, pkt addr 0xf4ecd000, size 4, cmd ReadResp)
+2647000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xf4ecd000 with 4 ready cachelines (pkt 0x56240d2d7970)
+2647000: system.cxl_controller: Received readiness update for block 0xf4ecd000: 4 cachelines ready
+2652000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2d7970, pkt addr 0x32062000, size 4, cmd ReadResp)
+2652000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x32062000 with 52 ready cachelines (pkt 0x56240d2d7970)
+2652000: system.cxl_controller: Received readiness update for block 0x32062000: 52 cachelines ready
+2657000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2d7a20, pkt addr 0x32062000, size 4, cmd ReadResp)
+2657000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x32062000 with 54 ready cachelines (pkt 0x56240d2d7a20)
+2657000: system.cxl_controller: Received readiness update for block 0x32062000: 54 cachelines ready
+2664500: system.decompbus.respLayer0: XBar system.decompbus layer system.decompbus.respLayer0 busy: state=BUSY waitingForPeer=none
+2674500: system.decompbus.respLayer0: XBar system.decompbus layer system.decompbus.respLayer0 busy: state=BUSY waitingForPeer=none
+2677000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2d7c30, pkt addr 0xf4ecd000, size 4, cmd ReadResp)
+2677000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xf4ecd000 with 6 ready cachelines (pkt 0x56240d2d7c30)
+2677000: system.cxl_controller: Received readiness update for block 0xf4ecd000: 6 cachelines ready
+2687000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2d7ce0, pkt addr 0xf4ecd000, size 4, cmd ReadResp)
+2687000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xf4ecd000 with 8 ready cachelines (pkt 0x56240d2d7ce0)
+2687000: system.cxl_controller: Received readiness update for block 0xf4ecd000: 8 cachelines ready
+2692000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2d7ce0, pkt addr 0x32062000, size 4, cmd ReadResp)
+2692000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x32062000 with 56 ready cachelines (pkt 0x56240d2d7ce0)
+2692000: system.cxl_controller: Received readiness update for block 0x32062000: 56 cachelines ready
+2697000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2d7d90, pkt addr 0x32062000, size 4, cmd ReadResp)
+2697000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x32062000 with 58 ready cachelines (pkt 0x56240d2d7d90)
+2697000: system.cxl_controller: Received readiness update for block 0x32062000: 58 cachelines ready
+2707000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2d7e40, pkt addr 0xf4ecd000, size 4, cmd ReadResp)
+2707000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xf4ecd000 with 10 ready cachelines (pkt 0x56240d2d7e40)
+2707000: system.cxl_controller: Received readiness update for block 0xf4ecd000: 10 cachelines ready
+2717000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2d7ef0, pkt addr 0xf4ecd000, size 4, cmd ReadResp)
+2717000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xf4ecd000 with 12 ready cachelines (pkt 0x56240d2d7ef0)
+2717000: system.cxl_controller: Received readiness update for block 0xf4ecd000: 12 cachelines ready
+2727000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2de000, pkt addr 0x32062000, size 4, cmd ReadResp)
+2727000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x32062000 with 60 ready cachelines (pkt 0x56240d2de000)
+2727000: system.cxl_controller: Received readiness update for block 0x32062000: 60 cachelines ready
+2747000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2de160, pkt addr 0xcf2e9000, size 4, cmd ReadResp)
+2747000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xcf2e9000 with 2 ready cachelines (pkt 0x56240d2de160)
+2747000: system.cxl_controller: Received readiness update for block 0xcf2e9000: 2 cachelines ready
+2757000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2de210, pkt addr 0x32062000, size 4, cmd ReadResp)
+2757000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0x32062000 with 62 ready cachelines (pkt 0x56240d2de210)
+2757000: system.cxl_controller: Received readiness update for block 0x32062000: 62 cachelines ready
+2762000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2de210, pkt addr 0xcf2e9000, size 4, cmd ReadResp)
+2762000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xcf2e9000 with 4 ready cachelines (pkt 0x56240d2de210)
+2762000: system.cxl_controller: Received readiness update for block 0xcf2e9000: 4 cachelines ready
+2767000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2de2c0, pkt addr 0xf4ecd000, size 4, cmd ReadResp)
+2767000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xf4ecd000 with 14 ready cachelines (pkt 0x56240d2de2c0)
+2767000: system.cxl_controller: Received readiness update for block 0xf4ecd000: 14 cachelines ready
+2777000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2de370, pkt addr 0xf4ecd000, size 4, cmd ReadResp)
+2777000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xf4ecd000 with 17 ready cachelines (pkt 0x56240d2de370)
+2777000: system.cxl_controller: Received readiness update for block 0xf4ecd000: 17 cachelines ready
+2787000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c3290, pkt addr 0x32062000, size 2176, cmd ReadResp)
+2787000: system.cxl_controller.mem_port: Received final data block confirmation from DecompEngine for CXLReq 0x56240d28a300 (orig CXL addr 0x732062cc0), using its memPkt 0x56240d2c3290. Size: 2176, Cmd: ReadResp
+2787000: system.cxl_controller.mem_port: Removing CXLReq 0x56240d28a300 from outstandingMemReqs (key 0x32062000) as final confirmation received.
+2787000: system.cxl_controller.mem_port: Final block confirmation for BT 0x32062000. Marking all 64 cachelines as ready.
+2787000: system.cxl_controller.mem_port: Final block 0x32062000 received, BT translation complete. Sending cache fill.
+2787000: system.cxl_controller: Sending cache fill request for block 0x32062000
+2787000: system.cxl_controller: Filling cache fill request for block 0x32062000 with pattern.
+2787000: system.cxl_controller: Successfully sent cache fill request for block 0x32062000
+2787000: system.cxl_controller.mem_port: Deleting memPkt 0x56240d2c3290 for CXLReq 0x56240d28a300 after DecompEngine response.
+2807000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2de580, pkt addr 0xcf2e9000, size 4, cmd ReadResp)
+2807000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xcf2e9000 with 6 ready cachelines (pkt 0x56240d2de580)
+2807000: system.cxl_controller: Received readiness update for block 0xcf2e9000: 6 cachelines ready
+2817000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2de630, pkt addr 0xcf2e9000, size 4, cmd ReadResp)
+2817000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xcf2e9000 with 8 ready cachelines (pkt 0x56240d2de630)
+2817000: system.cxl_controller: Received readiness update for block 0xcf2e9000: 8 cachelines ready
+2822000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2de630, pkt addr 0xf4ecd000, size 4, cmd ReadResp)
+2822000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xf4ecd000 with 19 ready cachelines (pkt 0x56240d2de630)
+2822000: system.cxl_controller: Received readiness update for block 0xf4ecd000: 19 cachelines ready
+2827000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2de6e0, pkt addr 0xf4ecd000, size 4, cmd ReadResp)
+2827000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xf4ecd000 with 21 ready cachelines (pkt 0x56240d2de6e0)
+2827000: system.cxl_controller: Received readiness update for block 0xf4ecd000: 21 cachelines ready
+2837000: system.cxl_controller.cache_port: CachePort: Received response for addr 0x32062000 (block 0x32062000), pkt cmd WriteResp
+2837000: system.cxl_controller.cache_port: CachePort: Received cache fill response for addr 0x32062000
+2837000: system.cxl_controller.cache_port: CachePort: Cache fill for BlockTracker 0x32062000
+2837000: system.cxl_controller: Received cache fill response for block 0x32062000
+2837000: global: Scheduling completion for all remaining reqs, req 0x56240d28a300 (addr 0x732062cc0) at tick 2887000
+2837000: system.cxl_controller: Scheduling cleanup of block tracker for 0x32062000
+2837000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2de420, pkt addr 0xcf2e9000, size 4, cmd ReadResp)
+2837000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xcf2e9000 with 10 ready cachelines (pkt 0x56240d2de420)
+2837000: system.cxl_controller: Received readiness update for block 0xcf2e9000: 10 cachelines ready
+2847000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2de790, pkt addr 0xcf2e9000, size 4, cmd ReadResp)
+2847000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xcf2e9000 with 12 ready cachelines (pkt 0x56240d2de790)
+2847000: system.cxl_controller: Received readiness update for block 0xcf2e9000: 12 cachelines ready
+2857000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2de840, pkt addr 0xf4ecd000, size 4, cmd ReadResp)
+2857000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xf4ecd000 with 23 ready cachelines (pkt 0x56240d2de840)
+2857000: system.cxl_controller: Received readiness update for block 0xf4ecd000: 23 cachelines ready
+2867000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2de8f0, pkt addr 0xf4ecd000, size 4, cmd ReadResp)
+2867000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xf4ecd000 with 25 ready cachelines (pkt 0x56240d2de8f0)
+2867000: system.cxl_controller: Received readiness update for block 0xf4ecd000: 25 cachelines ready
+2877000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2de9a0, pkt addr 0xcf2e9000, size 4, cmd ReadResp)
+2877000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xcf2e9000 with 14 ready cachelines (pkt 0x56240d2de9a0)
+2877000: system.cxl_controller: Received readiness update for block 0xcf2e9000: 14 cachelines ready
+2887000: system.cxl_controller: Completed CXL Request: Read Address: 0x732062cc0 Time: 0.272 us Ratio: 52.60 Latency: 2615.00 ns (cache miss) (Req: 0x56240d28a300)
+2887000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2dea50, pkt addr 0xcf2e9000, size 4, cmd ReadResp)
+2887000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xcf2e9000 with 16 ready cachelines (pkt 0x56240d2dea50)
+2887000: system.cxl_controller: Received readiness update for block 0xcf2e9000: 16 cachelines ready
+2897000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240a20b760, pkt addr 0xf4ecd000, size 4, cmd ReadResp)
+2897000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xf4ecd000 with 27 ready cachelines (pkt 0x56240a20b760)
+2897000: system.cxl_controller: Received readiness update for block 0xf4ecd000: 27 cachelines ready
+2907000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2debb0, pkt addr 0xf4ecd000, size 4, cmd ReadResp)
+2907000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xf4ecd000 with 29 ready cachelines (pkt 0x56240d2debb0)
+2907000: system.cxl_controller: Received readiness update for block 0xf4ecd000: 29 cachelines ready
+2917000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2dec60, pkt addr 0xcf2e9000, size 4, cmd ReadResp)
+2917000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xcf2e9000 with 18 ready cachelines (pkt 0x56240d2dec60)
+2917000: system.cxl_controller: Received readiness update for block 0xcf2e9000: 18 cachelines ready
+2927000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2ded10, pkt addr 0xcf2e9000, size 4, cmd ReadResp)
+2927000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xcf2e9000 with 20 ready cachelines (pkt 0x56240d2ded10)
+2927000: system.cxl_controller: Received readiness update for block 0xcf2e9000: 20 cachelines ready
+2937000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2dedc0, pkt addr 0xf4ecd000, size 4, cmd ReadResp)
+2937000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xf4ecd000 with 32 ready cachelines (pkt 0x56240d2dedc0)
+2937000: system.cxl_controller: Received readiness update for block 0xf4ecd000: 32 cachelines ready
+2947000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2dee70, pkt addr 0xf4ecd000, size 4, cmd ReadResp)
+2947000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xf4ecd000 with 34 ready cachelines (pkt 0x56240d2dee70)
+2947000: system.cxl_controller: Received readiness update for block 0xf4ecd000: 34 cachelines ready
+2957000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2def20, pkt addr 0xcf2e9000, size 4, cmd ReadResp)
+2957000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xcf2e9000 with 22 ready cachelines (pkt 0x56240d2def20)
+2957000: system.cxl_controller: Received readiness update for block 0xcf2e9000: 22 cachelines ready
+2967000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2defd0, pkt addr 0xcf2e9000, size 4, cmd ReadResp)
+2967000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xcf2e9000 with 24 ready cachelines (pkt 0x56240d2defd0)
+2967000: system.cxl_controller: Received readiness update for block 0xcf2e9000: 24 cachelines ready
+2977000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2df080, pkt addr 0xf4ecd000, size 4, cmd ReadResp)
+2977000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xf4ecd000 with 36 ready cachelines (pkt 0x56240d2df080)
+2977000: system.cxl_controller: Received readiness update for block 0xf4ecd000: 36 cachelines ready
+2987000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2df130, pkt addr 0xf4ecd000, size 4, cmd ReadResp)
+2987000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xf4ecd000 with 38 ready cachelines (pkt 0x56240d2df130)
+2987000: system.cxl_controller: Received readiness update for block 0xf4ecd000: 38 cachelines ready
+2997000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2df1e0, pkt addr 0xcf2e9000, size 4, cmd ReadResp)
+2997000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xcf2e9000 with 26 ready cachelines (pkt 0x56240d2df1e0)
+2997000: system.cxl_controller: Received readiness update for block 0xcf2e9000: 26 cachelines ready
+3007000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2df290, pkt addr 0xcf2e9000, size 4, cmd ReadResp)
+3007000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xcf2e9000 with 28 ready cachelines (pkt 0x56240d2df290)
+3007000: system.cxl_controller: Received readiness update for block 0xcf2e9000: 28 cachelines ready
+3017000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2df340, pkt addr 0xf4ecd000, size 4, cmd ReadResp)
+3017000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xf4ecd000 with 40 ready cachelines (pkt 0x56240d2df340)
+3017000: system.cxl_controller: Received readiness update for block 0xf4ecd000: 40 cachelines ready
+3027000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2df3f0, pkt addr 0xf4ecd000, size 4, cmd ReadResp)
+3027000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xf4ecd000 with 42 ready cachelines (pkt 0x56240d2df3f0)
+3027000: system.cxl_controller: Received readiness update for block 0xf4ecd000: 42 cachelines ready
+3037000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aab00, pkt addr 0xcf2e9000, size 4, cmd ReadResp)
+3037000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xcf2e9000 with 30 ready cachelines (pkt 0x56240d2aab00)
+3037000: system.cxl_controller: Received readiness update for block 0xcf2e9000: 30 cachelines ready
+3047000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2df4a0, pkt addr 0xcf2e9000, size 4, cmd ReadResp)
+3047000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xcf2e9000 with 33 ready cachelines (pkt 0x56240d2df4a0)
+3047000: system.cxl_controller: Received readiness update for block 0xcf2e9000: 33 cachelines ready
+3057000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2df550, pkt addr 0xf4ecd000, size 4, cmd ReadResp)
+3057000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xf4ecd000 with 44 ready cachelines (pkt 0x56240d2df550)
+3057000: system.cxl_controller: Received readiness update for block 0xf4ecd000: 44 cachelines ready
+3067000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2df600, pkt addr 0xf4ecd000, size 4, cmd ReadResp)
+3067000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xf4ecd000 with 46 ready cachelines (pkt 0x56240d2df600)
+3067000: system.cxl_controller: Received readiness update for block 0xf4ecd000: 46 cachelines ready
+3077000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2df6b0, pkt addr 0xcf2e9000, size 4, cmd ReadResp)
+3077000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xcf2e9000 with 35 ready cachelines (pkt 0x56240d2df6b0)
+3077000: system.cxl_controller: Received readiness update for block 0xcf2e9000: 35 cachelines ready
+3087000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2df760, pkt addr 0xcf2e9000, size 4, cmd ReadResp)
+3087000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xcf2e9000 with 37 ready cachelines (pkt 0x56240d2df760)
+3087000: system.cxl_controller: Received readiness update for block 0xcf2e9000: 37 cachelines ready
+3097000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2df810, pkt addr 0xf4ecd000, size 4, cmd ReadResp)
+3097000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xf4ecd000 with 49 ready cachelines (pkt 0x56240d2df810)
+3097000: system.cxl_controller: Received readiness update for block 0xf4ecd000: 49 cachelines ready
+3107000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2df8c0, pkt addr 0xf4ecd000, size 4, cmd ReadResp)
+3107000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xf4ecd000 with 51 ready cachelines (pkt 0x56240d2df8c0)
+3107000: system.cxl_controller: Received readiness update for block 0xf4ecd000: 51 cachelines ready
+3117000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2df970, pkt addr 0xcf2e9000, size 4, cmd ReadResp)
+3117000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xcf2e9000 with 39 ready cachelines (pkt 0x56240d2df970)
+3117000: system.cxl_controller: Received readiness update for block 0xcf2e9000: 39 cachelines ready
+3127000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2dfa20, pkt addr 0xcf2e9000, size 4, cmd ReadResp)
+3127000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xcf2e9000 with 41 ready cachelines (pkt 0x56240d2dfa20)
+3127000: system.cxl_controller: Received readiness update for block 0xcf2e9000: 41 cachelines ready
+3137000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2dfad0, pkt addr 0xf4ecd000, size 4, cmd ReadResp)
+3137000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xf4ecd000 with 53 ready cachelines (pkt 0x56240d2dfad0)
+3137000: system.cxl_controller: Received readiness update for block 0xf4ecd000: 53 cachelines ready
+3147000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2dfb80, pkt addr 0xf4ecd000, size 4, cmd ReadResp)
+3147000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xf4ecd000 with 55 ready cachelines (pkt 0x56240d2dfb80)
+3147000: system.cxl_controller: Received readiness update for block 0xf4ecd000: 55 cachelines ready
+3157000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2dfb80, pkt addr 0xcf2e9000, size 4, cmd ReadResp)
+3157000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xcf2e9000 with 43 ready cachelines (pkt 0x56240d2dfb80)
+3157000: system.cxl_controller: Received readiness update for block 0xcf2e9000: 43 cachelines ready
+3167000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aadc0, pkt addr 0xcf2e9000, size 4, cmd ReadResp)
+3167000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xcf2e9000 with 45 ready cachelines (pkt 0x56240d2aadc0)
+3167000: system.cxl_controller: Received readiness update for block 0xcf2e9000: 45 cachelines ready
+3177000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aad10, pkt addr 0xf4ecd000, size 4, cmd ReadResp)
+3177000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xf4ecd000 with 57 ready cachelines (pkt 0x56240d2aad10)
+3177000: system.cxl_controller: Received readiness update for block 0xf4ecd000: 57 cachelines ready
+3187000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aac60, pkt addr 0xf4ecd000, size 4, cmd ReadResp)
+3187000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xf4ecd000 with 59 ready cachelines (pkt 0x56240d2aac60)
+3187000: system.cxl_controller: Received readiness update for block 0xf4ecd000: 59 cachelines ready
+3194500: system.decompbus.respLayer0: XBar system.decompbus layer system.decompbus.respLayer0 busy: state=BUSY waitingForPeer=none
+3197000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aabb0, pkt addr 0xcf2e9000, size 4, cmd ReadResp)
+3197000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xcf2e9000 with 47 ready cachelines (pkt 0x56240d2aabb0)
+3197000: system.cxl_controller: Received readiness update for block 0xcf2e9000: 47 cachelines ready
+3204500: system.decompbus.respLayer0: XBar system.decompbus layer system.decompbus.respLayer0 busy: state=BUSY waitingForPeer=none
+3207000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2dfce0, pkt addr 0xcf2e9000, size 4, cmd ReadResp)
+3207000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xcf2e9000 with 49 ready cachelines (pkt 0x56240d2dfce0)
+3207000: system.cxl_controller: Received readiness update for block 0xcf2e9000: 49 cachelines ready
+3217000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240a20b760, pkt addr 0xf4ecd000, size 4, cmd ReadResp)
+3217000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xf4ecd000 with 61 ready cachelines (pkt 0x56240a20b760)
+3217000: system.cxl_controller: Received readiness update for block 0xf4ecd000: 61 cachelines ready
+3227000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c3d90, pkt addr 0xf4ecd000, size 1920, cmd ReadResp)
+3227000: system.cxl_controller.mem_port: Received final data block confirmation from DecompEngine for CXLReq 0x56240d28a380 (orig CXL addr 0x6f4ecd380), using its memPkt 0x56240d2c3d90. Size: 1920, Cmd: ReadResp
+3227000: system.cxl_controller.mem_port: Removing CXLReq 0x56240d28a380 from outstandingMemReqs (key 0xf4ecd000) as final confirmation received.
+3227000: system.cxl_controller.mem_port: Final block confirmation for BT 0xf4ecd000. Marking all 64 cachelines as ready.
+3227000: system.cxl_controller.mem_port: Final block 0xf4ecd000 received, BT translation complete. Sending cache fill.
+3227000: system.cxl_controller: Sending cache fill request for block 0xf4ecd000
+3227000: system.cxl_controller: Filling cache fill request for block 0xf4ecd000 with pattern.
+3227000: system.cxl_controller: Successfully sent cache fill request for block 0xf4ecd000
+3227000: system.cxl_controller.mem_port: Deleting memPkt 0x56240d2c3d90 for CXLReq 0x56240d28a380 after DecompEngine response.
+3237000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2dfef0, pkt addr 0xcf2e9000, size 4, cmd ReadResp)
+3237000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xcf2e9000 with 51 ready cachelines (pkt 0x56240d2dfef0)
+3237000: system.cxl_controller: Received readiness update for block 0xcf2e9000: 51 cachelines ready
+3247000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aae70, pkt addr 0xcf2e9000, size 4, cmd ReadResp)
+3247000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xcf2e9000 with 53 ready cachelines (pkt 0x56240d2aae70)
+3247000: system.cxl_controller: Received readiness update for block 0xcf2e9000: 53 cachelines ready
+3257000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2e6000, pkt addr 0xcf2e9000, size 4, cmd ReadResp)
+3257000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xcf2e9000 with 55 ready cachelines (pkt 0x56240d2e6000)
+3257000: system.cxl_controller: Received readiness update for block 0xcf2e9000: 55 cachelines ready
+3267000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2e60b0, pkt addr 0xcf2e9000, size 4, cmd ReadResp)
+3267000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xcf2e9000 with 57 ready cachelines (pkt 0x56240d2e60b0)
+3267000: system.cxl_controller: Received readiness update for block 0xcf2e9000: 57 cachelines ready
+3277000: system.cxl_controller.cache_port: CachePort: Received response for addr 0xf4ecd000 (block 0xf4ecd000), pkt cmd WriteResp
+3277000: system.cxl_controller.cache_port: CachePort: Received cache fill response for addr 0xf4ecd000
+3277000: system.cxl_controller.cache_port: CachePort: Cache fill for BlockTracker 0xf4ecd000
+3277000: system.cxl_controller: Received cache fill response for block 0xf4ecd000
+3277000: global: Scheduling completion for all remaining reqs, req 0x56240d28a380 (addr 0x6f4ecd380) at tick 3327000
+3277000: system.cxl_controller: Scheduling cleanup of block tracker for 0xf4ecd000
+3277000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2dfe40, pkt addr 0xcf2e9000, size 4, cmd ReadResp)
+3277000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xcf2e9000 with 59 ready cachelines (pkt 0x56240d2dfe40)
+3277000: system.cxl_controller: Received readiness update for block 0xcf2e9000: 59 cachelines ready
+3287000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2e6210, pkt addr 0xcf2e9000, size 4, cmd ReadResp)
+3287000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xcf2e9000 with 61 ready cachelines (pkt 0x56240d2e6210)
+3287000: system.cxl_controller: Received readiness update for block 0xcf2e9000: 61 cachelines ready
+3297000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c8160, pkt addr 0xcf2e9000, size 1984, cmd ReadResp)
+3297000: system.cxl_controller.mem_port: Received final data block confirmation from DecompEngine for CXLReq 0x56240d28a400 (orig CXL addr 0x1cf2e9540), using its memPkt 0x56240d2c8160. Size: 1984, Cmd: ReadResp
+3297000: system.cxl_controller.mem_port: Removing CXLReq 0x56240d28a400 from outstandingMemReqs (key 0xcf2e9000) as final confirmation received.
+3297000: system.cxl_controller.mem_port: Final block confirmation for BT 0xcf2e9000. Marking all 64 cachelines as ready.
+3297000: system.cxl_controller.mem_port: Final block 0xcf2e9000 received, BT translation complete. Sending cache fill.
+3297000: system.cxl_controller: Sending cache fill request for block 0xcf2e9000
+3297000: system.cxl_controller: Filling cache fill request for block 0xcf2e9000 with pattern.
+3297000: system.cxl_controller: Successfully sent cache fill request for block 0xcf2e9000
+3297000: system.cxl_controller.mem_port: Deleting memPkt 0x56240d2c8160 for CXLReq 0x56240d28a400 after DecompEngine response.
+3317000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2e6420, pkt addr 0xa7435000, size 4, cmd ReadResp)
+3317000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xa7435000 with 2 ready cachelines (pkt 0x56240d2e6420)
+3317000: system.cxl_controller: Received readiness update for block 0xa7435000: 2 cachelines ready
+3327000: system.cxl_controller: Completed CXL Request: Read Address: 0x6f4ecd380 Time: 0.298 us Ratio: 46.30 Latency: 3029.00 ns (cache miss) (Req: 0x56240d28a380)
+3327000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2e64d0, pkt addr 0xa7435000, size 4, cmd ReadResp)
+3327000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xa7435000 with 4 ready cachelines (pkt 0x56240d2e64d0)
+3327000: system.cxl_controller: Received readiness update for block 0xa7435000: 4 cachelines ready
+3337000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2e6580, pkt addr 0xa7435000, size 4, cmd ReadResp)
+3337000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xa7435000 with 6 ready cachelines (pkt 0x56240d2e6580)
+3337000: system.cxl_controller: Received readiness update for block 0xa7435000: 6 cachelines ready
+3347000: system.cxl_controller.cache_port: CachePort: Received response for addr 0xcf2e9000 (block 0xcf2e9000), pkt cmd WriteResp
+3347000: system.cxl_controller.cache_port: CachePort: Received cache fill response for addr 0xcf2e9000
+3347000: system.cxl_controller.cache_port: CachePort: Cache fill for BlockTracker 0xcf2e9000
+3347000: system.cxl_controller: Received cache fill response for block 0xcf2e9000
+3347000: global: Scheduling completion for all remaining reqs, req 0x56240d28a400 (addr 0x1cf2e9540) at tick 3397000
+3347000: system.cxl_controller: Scheduling cleanup of block tracker for 0xcf2e9000
+3347000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2e62c0, pkt addr 0xa7435000, size 4, cmd ReadResp)
+3347000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xa7435000 with 8 ready cachelines (pkt 0x56240d2e62c0)
+3347000: system.cxl_controller: Received readiness update for block 0xa7435000: 8 cachelines ready
+3352000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2e62c0, pkt addr 0xa7435000, size 4, cmd ReadResp)
+3352000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xa7435000 with 10 ready cachelines (pkt 0x56240d2e62c0)
+3352000: system.cxl_controller: Received readiness update for block 0xa7435000: 10 cachelines ready
+3357000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2e6630, pkt addr 0xa7435000, size 4, cmd ReadResp)
+3357000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xa7435000 with 12 ready cachelines (pkt 0x56240d2e6630)
+3357000: system.cxl_controller: Received readiness update for block 0xa7435000: 12 cachelines ready
+3367000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2e66e0, pkt addr 0xa7435000, size 4, cmd ReadResp)
+3367000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xa7435000 with 14 ready cachelines (pkt 0x56240d2e66e0)
+3367000: system.cxl_controller: Received readiness update for block 0xa7435000: 14 cachelines ready
+3377000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2e6790, pkt addr 0xa7435000, size 4, cmd ReadResp)
+3377000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xa7435000 with 17 ready cachelines (pkt 0x56240d2e6790)
+3377000: system.cxl_controller: Received readiness update for block 0xa7435000: 17 cachelines ready
+3387000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2e6840, pkt addr 0xa7435000, size 4, cmd ReadResp)
+3387000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xa7435000 with 19 ready cachelines (pkt 0x56240d2e6840)
+3387000: system.cxl_controller: Received readiness update for block 0xa7435000: 19 cachelines ready
+3397000: system.cxl_controller: Completed CXL Request: Read Address: 0x1cf2e9540 Time: 0.302 us Ratio: 47.30 Latency: 3095.00 ns (cache miss) (Req: 0x56240d28a400)
+3397000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2e68f0, pkt addr 0xa7435000, size 4, cmd ReadResp)
+3397000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xa7435000 with 21 ready cachelines (pkt 0x56240d2e68f0)
+3397000: system.cxl_controller: Received readiness update for block 0xa7435000: 21 cachelines ready
+3407000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2e69a0, pkt addr 0xa7435000, size 4, cmd ReadResp)
+3407000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xa7435000 with 23 ready cachelines (pkt 0x56240d2e69a0)
+3407000: system.cxl_controller: Received readiness update for block 0xa7435000: 23 cachelines ready
+3417000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2e6a50, pkt addr 0xa7435000, size 4, cmd ReadResp)
+3417000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xa7435000 with 25 ready cachelines (pkt 0x56240d2e6a50)
+3417000: system.cxl_controller: Received readiness update for block 0xa7435000: 25 cachelines ready
+3427000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2e6b00, pkt addr 0xa7435000, size 4, cmd ReadResp)
+3427000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xa7435000 with 27 ready cachelines (pkt 0x56240d2e6b00)
+3427000: system.cxl_controller: Received readiness update for block 0xa7435000: 27 cachelines ready
+3437000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2e6bb0, pkt addr 0xa7435000, size 4, cmd ReadResp)
+3437000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xa7435000 with 29 ready cachelines (pkt 0x56240d2e6bb0)
+3437000: system.cxl_controller: Received readiness update for block 0xa7435000: 29 cachelines ready
+3447000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aafd0, pkt addr 0xa7435000, size 4, cmd ReadResp)
+3447000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xa7435000 with 32 ready cachelines (pkt 0x56240d2aafd0)
+3447000: system.cxl_controller: Received readiness update for block 0xa7435000: 32 cachelines ready
+3457000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aafd0, pkt addr 0xa7435000, size 4, cmd ReadResp)
+3457000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xa7435000 with 34 ready cachelines (pkt 0x56240d2aafd0)
+3457000: system.cxl_controller: Received readiness update for block 0xa7435000: 34 cachelines ready
+3467000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aafd0, pkt addr 0xa7435000, size 4, cmd ReadResp)
+3467000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xa7435000 with 36 ready cachelines (pkt 0x56240d2aafd0)
+3467000: system.cxl_controller: Received readiness update for block 0xa7435000: 36 cachelines ready
+3477000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aafd0, pkt addr 0xa7435000, size 4, cmd ReadResp)
+3477000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xa7435000 with 38 ready cachelines (pkt 0x56240d2aafd0)
+3477000: system.cxl_controller: Received readiness update for block 0xa7435000: 38 cachelines ready
+3487000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aafd0, pkt addr 0xa7435000, size 4, cmd ReadResp)
+3487000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xa7435000 with 40 ready cachelines (pkt 0x56240d2aafd0)
+3487000: system.cxl_controller: Received readiness update for block 0xa7435000: 40 cachelines ready
+3497000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aafd0, pkt addr 0xa7435000, size 4, cmd ReadResp)
+3497000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xa7435000 with 42 ready cachelines (pkt 0x56240d2aafd0)
+3497000: system.cxl_controller: Received readiness update for block 0xa7435000: 42 cachelines ready
+3507000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aafd0, pkt addr 0xa7435000, size 4, cmd ReadResp)
+3507000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xa7435000 with 44 ready cachelines (pkt 0x56240d2aafd0)
+3507000: system.cxl_controller: Received readiness update for block 0xa7435000: 44 cachelines ready
+3517000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aafd0, pkt addr 0xa7435000, size 4, cmd ReadResp)
+3517000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xa7435000 with 46 ready cachelines (pkt 0x56240d2aafd0)
+3517000: system.cxl_controller: Received readiness update for block 0xa7435000: 46 cachelines ready
+3527000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aafd0, pkt addr 0xa7435000, size 4, cmd ReadResp)
+3527000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xa7435000 with 49 ready cachelines (pkt 0x56240d2aafd0)
+3527000: system.cxl_controller: Received readiness update for block 0xa7435000: 49 cachelines ready
+3537000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aafd0, pkt addr 0xa7435000, size 4, cmd ReadResp)
+3537000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xa7435000 with 51 ready cachelines (pkt 0x56240d2aafd0)
+3537000: system.cxl_controller: Received readiness update for block 0xa7435000: 51 cachelines ready
+3547000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aafd0, pkt addr 0xa7435000, size 4, cmd ReadResp)
+3547000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xa7435000 with 53 ready cachelines (pkt 0x56240d2aafd0)
+3547000: system.cxl_controller: Received readiness update for block 0xa7435000: 53 cachelines ready
+3557000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aafd0, pkt addr 0xa7435000, size 4, cmd ReadResp)
+3557000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xa7435000 with 55 ready cachelines (pkt 0x56240d2aafd0)
+3557000: system.cxl_controller: Received readiness update for block 0xa7435000: 55 cachelines ready
+3567000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aafd0, pkt addr 0xa7435000, size 4, cmd ReadResp)
+3567000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xa7435000 with 57 ready cachelines (pkt 0x56240d2aafd0)
+3567000: system.cxl_controller: Received readiness update for block 0xa7435000: 57 cachelines ready
+3577000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aafd0, pkt addr 0xa7435000, size 4, cmd ReadResp)
+3577000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xa7435000 with 59 ready cachelines (pkt 0x56240d2aafd0)
+3577000: system.cxl_controller: Received readiness update for block 0xa7435000: 59 cachelines ready
+3587000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2aafd0, pkt addr 0xa7435000, size 4, cmd ReadResp)
+3587000: system.cxl_controller.mem_port: Received ReadinessUpdate from DecompEngine for block 0xa7435000 with 61 ready cachelines (pkt 0x56240d2aafd0)
+3587000: system.cxl_controller: Received readiness update for block 0xa7435000: 61 cachelines ready
+3597000: system.cxl_controller.mem_port: Received response from DecompressionEngine (PKT PTR 0x56240d2c9ad0, pkt addr 0xa7435000, size 1920, cmd ReadResp)
+3597000: system.cxl_controller.mem_port: Received final data block confirmation from DecompEngine for CXLReq 0x56240d28a480 (orig CXL addr 0xaa74355c0), using its memPkt 0x56240d2c9ad0. Size: 1920, Cmd: ReadResp
+3597000: system.cxl_controller.mem_port: Removing CXLReq 0x56240d28a480 from outstandingMemReqs (key 0xa7435000) as final confirmation received.
+3597000: system.cxl_controller.mem_port: Final block confirmation for BT 0xa7435000. Marking all 64 cachelines as ready.
+3597000: system.cxl_controller.mem_port: Final block 0xa7435000 received, BT translation complete. Sending cache fill.
+3597000: system.cxl_controller: Sending cache fill request for block 0xa7435000
+3597000: system.cxl_controller: Filling cache fill request for block 0xa7435000 with pattern.
+3597000: system.cxl_controller: Successfully sent cache fill request for block 0xa7435000
+3597000: system.cxl_controller.mem_port: Deleting memPkt 0x56240d2c9ad0 for CXLReq 0x56240d28a480 after DecompEngine response.
+3647000: system.cxl_controller.cache_port: CachePort: Received response for addr 0xa7435000 (block 0xa7435000), pkt cmd WriteResp
+3647000: system.cxl_controller.cache_port: CachePort: Received cache fill response for addr 0xa7435000
+3647000: system.cxl_controller.cache_port: CachePort: Cache fill for BlockTracker 0xa7435000
+3647000: system.cxl_controller: Received cache fill response for block 0xa7435000
+3647000: global: Scheduling completion for all remaining reqs, req 0x56240d28a480 (addr 0xaa74355c0) at tick 3697000
+3647000: system.cxl_controller: Scheduling cleanup of block tracker for 0xa7435000
+3697000: system.cxl_controller: Completed CXL Request: Read Address: 0xaa74355c0 Time: 0.366 us Ratio: 46.20 Latency: 3331.00 ns (cache miss) (Req: 0x56240d28a480)
+3697000: system.cxl_controller: All 10 requests completed. Exiting simulation.
+3697000: system.cxl_controller: dumpStats() called.
+3697000: system.cxl_controller: Summary statistics written to /home/hnpark2/traceCache/gem5/src/cxl_objects/results/cxl_latency_log.txt.
+Exiting @ tick 3697000 because All CXL requests completed

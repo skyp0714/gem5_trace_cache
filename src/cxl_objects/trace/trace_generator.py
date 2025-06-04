@@ -22,7 +22,7 @@ def generate_trace(num_pages, avg_interval, total_length, output_file):
     # 4KB pages = 0x1000 bytes per page, so page addresses are 0x1000-aligned
     # Maximum page number in 64GB: 0x1000000000 / 0x1000 = 0x1000000
     pages = [
-        random.randint(0, 0x1000000 - 1) * 0x1000 for _ in range(num_pages)
+        random.randint(0, 0x8000000 - 1) * 0x1000 for _ in range(num_pages)
     ]
 
     # Open the output file
@@ -96,7 +96,7 @@ def main():
         "-l",
         "--length",
         type=int,
-        default=2000,
+        default=10000,
         help="Total number of requests to generate",
     )
     parser.add_argument(

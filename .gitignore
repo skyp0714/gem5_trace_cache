@@ -1,4 +1,5 @@
 build
+log.txt
 gem5_build
 parser.out
 parsetab.py
