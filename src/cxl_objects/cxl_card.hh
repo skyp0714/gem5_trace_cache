@@ -394,7 +394,7 @@ class CXLController : public SimObject
     std::ifstream traceFileStream;     // Persistent file stream
     Tick lastBatchTick = 0;            // Tick of last event in current batch
     bool moreTracesExist = true;       // Flag to indicate if more traces exist
-    unsigned batchSize = 10000;        // Number of traces to load per batch
+    unsigned batchSize;                // Number of traces to load per batch (now initialized from params)
     class BatchLoaderEvent* batchLoaderEvent = nullptr; // Event to trigger next batch loading
 
   public:

@@ -34,3 +34,6 @@ class CXLController(SimObject):
 
     # Cache line size (for making requests)
     cache_line_size = Param.Int(64, "Cache line size in bytes")
+
+    # Batch size for loading traces
+    batch_size = Param.Int(10000, "Number of traces to load in each batch")

@@ -586,6 +586,7 @@ CXLController::CXLController(const CXLControllerParams &p)
       completedRequests(0),
       translationEvent(nullptr),
       lastTranslationTick(0),
+      batchSize(p.batch_size),
       minCompletionLatency(50000) // 50ns in ticks
 {
     // Open the output file
@@ -1463,8 +1464,6 @@ CXLController::startup()
     // Load the trace file
     loadTrace();
 
-    // Schedule all events
-    scheduleEvents();
 }
 
 void
@@ -1494,6 +1493,7 @@ CXLController::loadNextTraceBatch()
     unsigned batchCount = 0;
     std::string line;
     Tick latestTick = lastBatchTick;
+    Tick tick_time;
 
     while (batchCount < batchSize && std::getline(traceFileStream, line)) {
         // Skip comment lines starting with //
@@ -1524,8 +1524,8 @@ CXLController::loadNextTraceBatch()
         req.comprRatio = comprRatio;
 
         // Convert to ticks for tracking
-        Tick tick_time = time_us * gem5::sim_clock::as_float::us;
-        latestTick = std::max(latestTick, tick_time);
+        tick_time = time_us * gem5::sim_clock::as_float::us;
+        assert(latestTick <= tick_time && "Tick time must be greater than or equal to last batch tick");
 
         requests.push_back(req);
 
@@ -1538,6 +1538,8 @@ CXLController::loadNextTraceBatch()
 
         batchCount++;
     }
+
+    latestTick = tick_time;
 
     // Update total requests count
     totalRequests = requests.size();
@@ -1562,15 +1564,6 @@ CXLController::loadNextTraceBatch()
     DPRINTF(CXLCard, "Loaded %u traces in this batch. Total loaded so far: %u\n",
             batchCount, totalRequests);
 }
-
-// Update scheduleEvents to be a minimal implementation since batch loading handles scheduling
-void
-CXLController::scheduleEvents()
-{
-    // Now handled by batch loading
-    DPRINTF(CXLCard, "Using batch-based scheduling\n");
-}
-
 Port &
 CXLController::getPort(const std::string &if_name, PortID idx)
 {

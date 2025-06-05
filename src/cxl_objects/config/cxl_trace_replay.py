@@ -52,7 +52,7 @@ parser.add_argument(
     "--l1-assoc", type=int, default=8, help="L1 cache associativity"
 )
 parser.add_argument(
-    "--l1-size", type=str, default="32MB", help="L1 cache size"
+    "--l1-size", type=str, default="16MB", help="L1 cache size"
 )
 parser.add_argument(
     "--cacheline-size", type=int, default=64, help="Cache line size in bytes"
@@ -144,6 +144,7 @@ system.cxl_controller = CXLController(
     output_file=args.output_file,
     block_size=args.compression_block_size,
     cache_line_size=args.cacheline_size,
+    batch_size=1000,
 )
 
 # Connect the CXL controller to cache

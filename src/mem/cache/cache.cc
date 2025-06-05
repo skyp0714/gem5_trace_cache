@@ -420,7 +420,7 @@ Cache::recvTimingReq(PacketPtr pkt)
         }
 
         // Do any writebacks resulting from the fill
-        doWritebacks(writebacks, clockEdge(fillLatency));
+        //doWritebacks(writebacks, clockEdge(fillLatency));
 
         // If the packet needs a response, generate one
         if (pkt->needsResponse()) {

@@ -18,11 +18,11 @@ def generate_trace(num_pages, avg_interval, total_length, output_file):
         output_file: Output file path
     """
     # Create a list of page addresses (aligned to 4KB)
-    # Modified to work within 64GB range (0x000000000000 ~ 0x1000000000)
+    # Modified to work within 32GB range (0x000000000000 ~ 0x800000000)
     # 4KB pages = 0x1000 bytes per page, so page addresses are 0x1000-aligned
-    # Maximum page number in 64GB: 0x1000000000 / 0x1000 = 0x1000000
+    # Maximum page number in 32GB: 0x800000000 / 0x1000 = 0x800000
     pages = [
-        random.randint(0, 0x8000000 - 1) * 0x1000 for _ in range(num_pages)
+        random.randint(0, 0x800000 - 1) * 0x1000 for _ in range(num_pages)
     ]
 
     # Open the output file
@@ -82,21 +82,21 @@ def main():
         "-p",
         "--pages",
         type=int,
-        default=500,
+        default=10000,
         help="Number of unique pages to access",
     )
     parser.add_argument(
         "-i",
         "--interval",
         type=float,
-        default=0.03,
+        default=0.1,
         help="Average interval between requests in microseconds",
     )
     parser.add_argument(
         "-l",
         "--length",
         type=int,
-        default=100000,
+        default=1000000,
         help="Total number of requests to generate",
     )
     parser.add_argument(

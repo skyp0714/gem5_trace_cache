@@ -442,7 +442,7 @@ BaseCache::recvTimingReq(PacketPtr pkt)
         }
 
         // Do any writebacks resulting from the fill
-        doWritebacks(writebacks, clockEdge(fillLatency));
+        //doWritebacks(writebacks, clockEdge(fillLatency));
 
         // If the packet needs a response, generate one
         if (pkt->needsResponse()) {
@@ -1739,7 +1739,8 @@ BaseCache::evictBlock(CacheBlk *blk, PacketList &writebacks)
 {
     PacketPtr pkt = evictBlock(blk);
     if (pkt) {
-        writebacks.push_back(pkt);
+        delete pkt;
+        // writebacks.push_back(pkt);
     }
 }
 
