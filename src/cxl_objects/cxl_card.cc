@@ -168,7 +168,7 @@ UnifiedBlockOperation::processCacheResponse(PacketPtr respPkt, bool is_hit) {
             if (!pending_cxl_requests.empty()) {
                 CXLRequest* actualReq = pending_cxl_requests.front();
                 // Queue the translation request - this handles timing and port stalling internally
-                success = controller->sendAddressTranslationRequest(*actualReq);
+                success = controller->sendAddressTranslationRequest(actualReq);
 
                 if (success) {
                     DPRINTF(CXLCard, "UBO for 0x%lx: Successfully queued translation request after cache miss using request %p\n",
@@ -466,6 +466,8 @@ CXLController::CXLRequestPort::recvTimingResp(PacketPtr pkt)
             } else {
                 warn("CXLCard: Received unclassifiable/unexpected response from DecompEngine (addr 0x%lx, PKT PTR %p, size %u, cmd %s). Not an original CXLReq memPkt and not a readiness update. Packet will be deleted.",
                      addr, pkt, pkt->getSize(), pkt->cmdString());
+                DPRINTF(CXLCard, "CXLCard: Received unclassifiable response from DecompEngine for addr 0x%lx. No matching CXLReq found, pkt cmd %s. Deleting pkt %p.\n",
+                        addr, pkt->cmdString(), pkt);
                 delete pkt;
             }
         }
@@ -514,7 +516,6 @@ BlockTracker::updateReadiness(unsigned readyCachelines)
 void
 BlockTracker::processReadyRequests()
 {
-    const Tick minLatency = 50000; // 50ns minimum latency
     Tick currentTick = curTick();
 
     for (CXLRequest* req : requests) {
@@ -532,7 +533,7 @@ BlockTracker::processReadyRequests()
                     req->completionEvent = new RequestCompletionEvent(
                         controller, req);
 
-                    Tick completionTick = currentTick + minLatency;
+                    Tick completionTick = currentTick;
                     DPRINTF(CXLCard, "Scheduling completion for req %p (addr 0x%lx) at tick %lu\n",
                             req, req->addr, completionTick);
 
@@ -547,12 +548,21 @@ BlockTracker::processReadyRequests()
 void
 BlockTracker::completeAllRequests()
 {
-    const Tick minLatency = 50000; // 50ns minimum latency
     Tick currentTick = curTick();
+    std::vector<CXLRequest*> completedRequests;
 
+    // First pass: process all requests and identify completed ones
     for (CXLRequest* req : requests) {
-        // Skip already completed requests
-        if (req->completed) continue;
+        // Collect completed requests for later deletion
+        if (req->completed) {
+            auto it = std::find(controller->requests.begin(), controller->requests.end(), req);
+            if (it != controller->requests.end()) {
+                // DPRINTF(CXLCard, "Deleting completed CXLRequest (BT) %p (addr 0x%lx)\n", req, req->addr);
+                controller->requests.erase(it);
+                delete req;
+            }
+            continue;
+        }
 
         // Set ready time if not already set
         if (req->readyTick == 0) {
@@ -564,12 +574,17 @@ BlockTracker::completeAllRequests()
             req->completionEvent = new RequestCompletionEvent(
                 controller, req);
 
-            Tick completionTick = currentTick + minLatency;
+            Tick completionTick = currentTick;
             DPRINTF(CXLCard, "Scheduling completion for all remaining reqs, req %p (addr 0x%lx) at tick %lu\n",
                     req, req->addr, completionTick);
 
             controller->schedule(req->completionEvent, completionTick); // Use controller->schedule()
         }
+    }
+
+    if (controller->allRequestsCompleted()) {
+        DPRINTF(CXLCard, "All requests completed. Exiting simulation.\n");
+        exitSimLoop("All CXL requests completed", 0);
     }
 }
 
@@ -664,6 +679,14 @@ CXLController::~CXLController()
     }
     outstandingMemReqs.clear();
 
+    // Clean up remaining CXLRequest objects
+    for (CXLRequest* req : requests) {
+        DPRINTF(CXLCard, "Destructor: Deleting CXLRequest %p (addr 0x%lx)\n",
+                req, req->addr);
+        delete req;
+    }
+    requests.clear();
+
     // Clean up translation event
     if (translationEvent) {
         delete translationEvent;
@@ -720,20 +743,20 @@ CXLController::dumpStats()
 
 // Send the translation request
 bool
-CXLController::doSendAddressTranslationRequest(CXLRequest &req)
+CXLController::doSendAddressTranslationRequest(CXLRequest *req)
 {
     // Add assertion: translation port should not be stalled when this function is called
     assert(!translationPortStalled && "doSendAddressTranslationRequest called while translation port is stalled");
 
     // Get the block address (aligned to cache line size)
-    Addr blockAddr = req.addr & ~(blockSize - 1);
+    Addr blockAddr = req->addr & ~(blockSize - 1);
 
     // Translation table is in the second half of memory (0x800000000 - 0x80000000)
     // Calculate a lookup address in the translation table based on the block address
     Addr translationAddr = 0x800000000 + blockAddr;
 
     DPRINTF(CXLCard, "Translation lookup: original addr 0x%lx (block addr 0x%lx) → table lookup addr 0x%lx (Req: %p)\n",
-            req.addr, blockAddr, translationAddr, &req);
+            req->addr, blockAddr, translationAddr, req);
 
     // Create request and packet - explicitly use 8 bytes (64 bits) for translation lookup
     auto transReq = std::make_shared<Request>(translationAddr, 8, 0, 0);
@@ -741,12 +764,12 @@ CXLController::doSendAddressTranslationRequest(CXLRequest &req)
     pkt->allocate();
 
     // Store in request
-    if (req.transPkt) {
-        warn("Req %p already has a transPkt %p assigned when creating new transPkt %p", &req, req.transPkt, pkt);
-        delete req.transPkt; // Delete old packet
+    if (req->transPkt) {
+        warn("Req %p already has a transPkt %p assigned when creating new transPkt %p", req, req->transPkt, pkt);
+        delete req->transPkt; // Delete old packet
     }
-    req.transPkt = pkt;
-    req.translationSent = true;
+    req->transPkt = pkt;
+    req->translationSent = true;
 
     // Update the last translation time
     lastTranslationTick = curTick();
@@ -758,31 +781,14 @@ CXLController::doSendAddressTranslationRequest(CXLRequest &req)
 
 // Queue translation request
 bool
-CXLController::sendAddressTranslationRequest(CXLRequest &req)
+CXLController::sendAddressTranslationRequest(CXLRequest *req)
 {
     // Add request to queue
     DPRINTF(CXLCard, "Queueing translation request for addr 0x%lx (req %p)\n",
-            req.addr, &req);
-
-    // Find the tracked request pointer
-    CXLRequest* trackedReq = nullptr;
-    for (size_t i = 0; i < requests.size(); i++) {
-        if (requests[i].addr == req.addr &&
-            requests[i].time_us == req.time_us &&
-            !requests[i].completed)
-        {
-            trackedReq = &requests[i];
-            break;
-        }
-    }
-
-    if (!trackedReq) {
-        warn("Cannot find tracked request for addr 0x%lx", req.addr);
-        return false;
-    }
+            req->addr, req);
 
     // Add to queue
-    translationQueue.push_back(trackedReq);
+    translationQueue.push_back(req);
 
     // If port is stalled, don't schedule translation
     if (translationPortStalled) {
@@ -844,7 +850,7 @@ CXLController::processNextTranslation()
     }
 
     // Send the translation request
-    bool success = doSendAddressTranslationRequest(*req);
+    bool success = doSendAddressTranslationRequest(req);
 
     // If failed to send, set stalled flag and put req back at the front of queue
     if (!success) {
@@ -960,7 +966,11 @@ CXLController::trySendRetries(bool toCache)
 bool
 CXLController::allRequestsCompleted() const
 {
-    return completedRequests == totalRequests && totalRequests > 0;
+    if(!moreTracesExist){
+        DPRINTF(CXLCard, "Completing all requests check: completedRequests=%d, totalRequests=%d\n",
+                completedRequests, totalRequests);
+    }
+    return (completedRequests == totalRequests) && (moreTracesExist == false);
 }
 
 // Complete a request with proper statistics and timing
@@ -1039,6 +1049,18 @@ CXLController::completeRequest(CXLRequest* req, bool isHit)
     // Increment completed requests counter
     completedRequests++;
 
+    // We can safely delete the request only if
+    // (1) Is was cache hit by UBO
+    // (2) It was a miss, and completed by completeallrequests()
+    if(!req->blockTracker){
+        auto it = std::find(requests.begin(), requests.end(), req);
+        if (it != requests.end()) {
+            DPRINTF(CXLCard, "Deleting completed (UBO Hit/BT Last) CXLRequest %p (addr 0x%lx)\n", req, req->addr);
+            requests.erase(it);
+            delete req;
+        }
+    }
+
     // Check if all requests are completed
     if (allRequestsCompleted()) {
         DPRINTF(CXLCard, "All %d requests completed. Exiting simulation.\n", totalRequests);
@@ -1059,24 +1081,10 @@ CXLController::completeRequestWithEvent(CXLRequest* req)
 
 // Process a request
 void
-CXLController::processRequest(const CXLRequest &reqEvent)
+CXLController::processRequest( CXLRequest* reqEvent)
 {
-    CXLRequest* trackedReq = nullptr;
-    for (size_t i = 0; i < requests.size(); i++) {
-        if (requests[i].addr == reqEvent.addr &&
-            requests[i].time_us == reqEvent.time_us &&
-            !requests[i].completed)
-        {
-            trackedReq = &requests[i];
-            break;
-        }
-    }
-
-    if (trackedReq == nullptr) {
-        warn("Could not find matching non-completed request in request vector for addr 0x%lx time %.3f, skipping",
-             reqEvent.addr, reqEvent.time_us);
-        return;
-    }
+    // reqEvent is already a pointer to a request in our vector
+    CXLRequest* trackedReq = reqEvent;
 
     if (trackedReq->arrivalTick == 0) {
         trackedReq->arrivalTick = curTick();
@@ -1200,7 +1208,7 @@ CXLController::transitionToBlockTracker(UnifiedBlockOperation* ubo, Addr transla
                     // If UBO owned its transPkt, CXLRequest::transPkt might not have been set for UBO's translation.
                     // Let's assume sendAddressTranslationRequest handles new packet creation.
                 }
-                sendAddressTranslationRequest(*representative_req);
+                sendAddressTranslationRequest(representative_req);
             }
         } else { // Write miss
             DPRINTF(CXLCard, "UBO->BT transition for 0x%lx: Write miss. Completing CXLReqs in BT (no-write-allocate).\n", tracker->getBlockAddr());
@@ -1285,8 +1293,8 @@ CXLController::sendRequestToCache(CXLRequest &req)
     // Find the tracked request
     CXLRequest* trackedReq = nullptr;
     for (size_t i = 0; i < requests.size(); ++i) { // Using size_t for vector index
-        if (requests[i].addr == req.addr && requests[i].time_us == req.time_us && !requests[i].completed) {
-            trackedReq = &requests[i];
+        if (requests[i]->addr == req.addr && requests[i]->time_us == req.time_us && !requests[i]->completed) {
+            trackedReq = requests[i];
             break;
         }
     }
@@ -1404,7 +1412,7 @@ CXLController::processCacheFillResponse(Addr blockAddr)
 
     // Remove block tracker (after a short delay to allow requests to complete)
     // For now, we'll just schedule cleanup immediately
-    DPRINTF(CXLCard, "Scheduling cleanup of block tracker for 0x%lx\n", blockAddr);
+    DPRINTF(CXLCard, "Cleanup of block tracker for 0x%lx\n", blockAddr);
 
     // In a real implementation, we might want a delay here before cleanup
     removeBlockTracker(blockAddr);
@@ -1517,11 +1525,12 @@ CXLController::loadNextTraceBatch()
             continue;
         }
 
-        CXLRequest req;
-        req.isRead = (rw == 'R');
-        req.addr = addr;
-        req.time_us = time_us;
-        req.comprRatio = comprRatio;
+        // Dynamically allocate a new CXLRequest
+        CXLRequest* req = new CXLRequest();
+        req->isRead = (rw == 'R');
+        req->addr = addr;
+        req->time_us = time_us;
+        req->comprRatio = comprRatio;
 
         // Convert to ticks for tracking
         tick_time = time_us * gem5::sim_clock::as_float::us;
@@ -1529,12 +1538,13 @@ CXLController::loadNextTraceBatch()
 
         requests.push_back(req);
 
-        // Create and schedule event
+        // Create and schedule event - pass the pointer
         static int eventId = 0;
         auto event = new CXLRequestEvent(req, csprintf("%s-event-%d", name(), eventId++), this);
         schedule(event, tick_time);
 
-        DPRINTF(CXLCard, "Scheduled CXL request event at %lu ticks (%.3f us)\n", tick_time, time_us);
+        // DPRINTF(CXLCard, "Scheduled CXL request event at %lu ticks (%.3f us) for request %p\n",
+        //         tick_time, time_us, req);
 
         batchCount++;
     }
@@ -1542,12 +1552,14 @@ CXLController::loadNextTraceBatch()
     latestTick = tick_time;
 
     // Update total requests count
-    totalRequests = requests.size();
+    totalRequests += batchCount;
 
-    // Check if we've reached the end of the file
-    if (batchCount < batchSize) {
+    bool eof_reached = traceFileStream.eof();
+
+    if (eof_reached || batchCount < batchSize) {
         moreTracesExist = false;
-        DPRINTF(CXLCard, "Reached end of trace file. Total traces loaded: %u\n", totalRequests);
+        DPRINTF(CXLCard, "Reached end of trace file. Total traces loaded: %u (EOF: %d)\n",
+                totalRequests, eof_reached);
     } else {
         // Update last batch tick for next batch scheduling
         lastBatchTick = latestTick;

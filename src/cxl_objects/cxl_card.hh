@@ -256,12 +256,12 @@ public:
 class CXLRequestEvent : public Event
 {
   private:
-    CXLRequest request;
+    CXLRequest* request;
     const std::string _name;
     CXLController *controller;
 
   public:
-    CXLRequestEvent(CXLRequest req, const std::string &name, CXLController *ctrl)
+    CXLRequestEvent(CXLRequest* req, const std::string &name, CXLController *ctrl)
         : request(req), _name(name), controller(ctrl) {}
 
     const std::string name() const override { return _name; }
@@ -269,7 +269,7 @@ class CXLRequestEvent : public Event
     void process() override;
 
     // Return the CXL request
-    const CXLRequest& getRequest() const { return request; }
+    CXLRequest* getRequest() { return request; }
 };
 
 class CXLController : public SimObject
@@ -289,7 +289,7 @@ class CXLController : public SimObject
     const unsigned cacheLineSize;
 
     // Vector of CXL requests
-    std::vector<CXLRequest> requests;
+    std::vector<CXLRequest*> requests;
 
     // Request ports to the memory system
     class CXLRequestPort : public RequestPort
@@ -358,10 +358,10 @@ class CXLController : public SimObject
     bool sendRequestToMemory(CXLRequest &req, BlockTracker* tracker);
 
     // Send a request for address translation
-    bool sendAddressTranslationRequest(CXLRequest &req);
+    bool sendAddressTranslationRequest(CXLRequest *req);
 
     // Actually send the translation request to the port
-    bool doSendAddressTranslationRequest(CXLRequest &req);
+    bool doSendAddressTranslationRequest(CXLRequest *req);
 
     // Schedule the next translation event
     void scheduleNextTranslation();
@@ -406,7 +406,7 @@ class CXLController : public SimObject
     void loadNextTraceBatch();
 
     // Process a request
-    void processRequest(const CXLRequest &reqEvent);
+    void processRequest(CXLRequest *reqEvent);
 
     // Process a cache miss
     void processCacheMiss(CXLRequest* req, PacketPtr missPkt);

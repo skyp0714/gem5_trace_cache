@@ -82,21 +82,21 @@ def main():
         "-p",
         "--pages",
         type=int,
-        default=10000,
+        default=3000,
         help="Number of unique pages to access",
     )
     parser.add_argument(
         "-i",
         "--interval",
         type=float,
-        default=0.1,
+        default=0.5,
         help="Average interval between requests in microseconds",
     )
     parser.add_argument(
         "-l",
         "--length",
         type=int,
-        default=1000000,
+        default=100000,
         help="Total number of requests to generate",
     )
     parser.add_argument(
