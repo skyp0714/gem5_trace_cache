@@ -182,7 +182,6 @@ DecompressionEngine::CXLSidePort::recvTimingReq(PacketPtr pkt)
 {
     // DecompressionEngine now only handles large read requests that need chunking.
     fatal_if(!pkt->isRead(), "DecompressionEngine received non-read request from CXL controller. Addr: %#x, Size: %u", pkt->getAddr(), pkt->getSize());
-    fatal_if(pkt->getSize() <= owner->cache_line_size, "DecompressionEngine received small read request (addr %#x, size %u B) not needing chunking. Min size: %u B", pkt->getAddr(), pkt->getSize(), owner->cache_line_size + 1);
 
     DPRINTF(DecompEngine, "Received large read request for addr %#x, size %u from CXL controller.\n",
             pkt->getAddr(), pkt->getSize());
@@ -197,10 +196,18 @@ DecompressionEngine::CXLSidePort::recvTimingReq(PacketPtr pkt)
     parentReq->isChunk = false; // This is a parent request
 
     // Calculate the number of chunks
-    parentReq->totalChunks = pkt->getSize() / owner->cache_line_size;
-    if (pkt->getSize() % owner->cache_line_size != 0) {
-         parentReq->totalChunks++;
+    if (pkt->getSize() <= owner->cache_line_size) {
+        // If request size is less than or equal to cache line size, just use one chunk
+        parentReq->totalChunks = 1;
+        DPRINTF(DecompEngine, "Small request (%u bytes) - using single chunk\n", pkt->getSize());
+    } else {
+        // Otherwise calculate multiple chunks as before
+        parentReq->totalChunks = pkt->getSize() / owner->cache_line_size;
+        if (pkt->getSize() % owner->cache_line_size != 0) {
+            parentReq->totalChunks++;
+        }
     }
+
     // Ensure at least one chunk if size > 0 and totalChunks ended up 0
     if (pkt->getSize() > 0 && parentReq->totalChunks == 0) parentReq->totalChunks = 1;
 
