@@ -133,9 +133,7 @@ UnifiedBlockOperation::processCacheResponse(PacketPtr respPkt, bool is_hit) {
         for (CXLRequest* cxl_req : pending_cxl_requests) {
             if (!cxl_req->completed) {
                 cxl_req->cacheHit = true;
-                // MODIFIED: Ensure minimum 50ns latency from arrival time
-                Tick minCompletionTick = cxl_req->arrivalTick + 50000; // 50ns minimum
-                Tick completionTick = std::max(curTick(), minCompletionTick);
+                Tick completionTick = curTick();
 
                 if (!cxl_req->completionEvent) {
                     cxl_req->completionEvent = new RequestCompletionEvent(controller, cxl_req);
@@ -381,11 +379,9 @@ CXLController::CXLRequestPort::recvTimingResp(PacketPtr pkt)
 
     } else { // Memory Port Path -> Response from DecompressionEngine
         Addr addr = pkt->getAddr();
-        // Addr lineAddr = addr & ~(controller->blockSize - 1); // This is CXL-side block address if pkt is readiness update
-                                                              // If pkt is final response, addr is translated block address
 
-        DPRINTF(CXLCard, "Received response from DecompressionEngine (PKT PTR %p, pkt addr 0x%lx, size %u, cmd %s)\n",
-                pkt, addr, pkt->getSize(), pkt->cmdString());
+        DPRINTF(CXLCard, "Received response from DecompressionEngine (PKT PTR %p, pkt addr 0x%lx, size %u, cmd %s, hasData=%d)\n",
+                pkt, addr, pkt->getSize(), pkt->cmdString(), pkt->hasData());
 
         // Check if this packet is an original CXLRequest's memPkt (final block confirmation)
         CXLRequest* cxl_req_associated_with_mem_pkt = nullptr;
@@ -401,9 +397,6 @@ CXLController::CXLRequestPort::recvTimingResp(PacketPtr pkt)
             if (candidate_req && candidate_req->memPkt == pkt) {
                 cxl_req_associated_with_mem_pkt = candidate_req;
                 original_request_addr_for_mem_pkt = candidate_req->addr;
-            } else if (candidate_req) {
-                //  warn("CXLCard: Packet %p from DecompEngine for translated_addr 0x%lx matches outstanding entry, but memPkt pointer %p does not match CXLReq %p's memPkt %p.",
-                //       pkt, translated_block_addr_key, pkt, candidate_req, candidate_req->memPkt);
             }
         }
 
@@ -432,16 +425,15 @@ CXLController::CXLRequestPort::recvTimingResp(PacketPtr pkt)
                 tracker->updateReadiness(total_cachelines_in_block); // This will call processReadyRequests
             }
 
-            // NEW: Trigger cache fill if appropriate
-            if (tracker && tracker->isTranslationComplete() && !tracker->isCacheFillSent()) { // MODIFIED condition
-                DPRINTF(CXLCard, "Final block 0x%lx received, BT translation complete. Sending cache fill.\n", // MODIFIED DPRINTF
+            // Trigger cache fill if appropriate
+            if (tracker && tracker->isTranslationComplete() && !tracker->isCacheFillSent()) {
+                DPRINTF(CXLCard, "Final block 0x%lx received, BT translation complete. Sending cache fill.\n",
                         tracker->getBlockAddr());
                 controller->sendCacheFillRequest(tracker);
             } else if (tracker) {
-                DPRINTF(CXLCard, "Final block 0x%lx received. BT state: transComplete=%d, cacheFillSent=%d. No cache fill sent now.\n", // MODIFIED DPRINTF
+                DPRINTF(CXLCard, "Final block 0x%lx received. BT state: transComplete=%d, cacheFillSent=%d. No cache fill sent now.\n",
                         tracker->getBlockAddr(), tracker->isTranslationComplete(), tracker->isCacheFillSent());
             }
-
 
             DPRINTF(CXLCard, "Deleting memPkt %p for CXLReq %p after DecompEngine response.\n",
                     pkt, cxl_req_associated_with_mem_pkt);
@@ -451,9 +443,9 @@ CXLController::CXLRequestPort::recvTimingResp(PacketPtr pkt)
             }
 
         } else {
-            if (pkt->isResponse() && pkt->isRead() && !pkt->isError() &&
-                pkt->hasData() && pkt->getSize() == sizeof(unsigned)) {
-
+            // Modified: Check for readiness update - note we don't check isRead() since we're using WriteReq
+            // for read requests, so the response will be WriteResp
+            if (pkt->isResponse() && !pkt->isError() && pkt->hasData() && pkt->getSize() == sizeof(unsigned)) {
                 unsigned readyCachelines = *pkt->getPtr<unsigned>();
                 DPRINTF(CXLCard, "Received ReadinessUpdate from DecompEngine for block 0x%lx with %u ready cachelines (pkt %p)\n",
                         addr, readyCachelines, pkt);
@@ -464,16 +456,12 @@ CXLController::CXLRequestPort::recvTimingResp(PacketPtr pkt)
 
                 delete pkt;
             } else {
-                warn("CXLCard: Received unclassifiable/unexpected response from DecompEngine (addr 0x%lx, PKT PTR %p, size %u, cmd %s). Not an original CXLReq memPkt and not a readiness update. Packet will be deleted.",
-                     addr, pkt, pkt->getSize(), pkt->cmdString());
-                DPRINTF(CXLCard, "CXLCard: Received unclassifiable response from DecompEngine for addr 0x%lx. No matching CXLReq found, pkt cmd %s. Deleting pkt %p.\n",
-                        addr, pkt->cmdString(), pkt);
+                warn("CXLCard: Received unclassifiable/unexpected response from DecompEngine (addr 0x%lx, PKT PTR %p, size %u, cmd %s, hasData=%d). Not an original CXLReq memPkt and not a readiness update. Packet will be deleted.",
+                     addr, pkt, pkt->getSize(), pkt->cmdString(), pkt->hasData());
                 delete pkt;
             }
         }
-        return true;
     }
-
     return true;
 }
 
@@ -601,8 +589,9 @@ CXLController::CXLController(const CXLControllerParams &p)
       completedRequests(0),
       translationEvent(nullptr),
       lastTranslationTick(0),
-      batchSize(p.batch_size),
-      minCompletionLatency(50000) // 50ns in ticks
+      translationPortStalled(false), // Add this
+      minCompletionLatency(2000), // Move this before batchSize
+      batchSize(p.batch_size)
 {
     // Open the output file
     outputFile.open(outputFilePath);
@@ -1348,26 +1337,36 @@ CXLController::sendRequestToMemory(CXLRequest &req, BlockTracker* tracker)
     // Round up to nearest cacheline size
     unsigned compressedSize = ((raw_compressed_size + cacheLineSize - 1) / cacheLineSize) * cacheLineSize;
 
-    DPRINTF(CXLCard, "Original size: %u bytes, Raw compressed size: %u bytes, Final rounded compressed size: %u bytes (Ratio: %.2f%%, CacheLineSize: %u)\n",
-            blockSize, raw_compressed_size, compressedSize, req.comprRatio, cacheLineSize);
+    // Ensure there's enough space for metadata (compression ratio and decompression latency)
+    // Use a minimum size that's a multiple of 8 bytes and at least 2 doubles (16 bytes)
+    unsigned metadataSize = sizeof(double) * 2;
+    compressedSize = std::max(compressedSize, metadataSize);
+
+    DPRINTF(CXLCard, "Original size: %u bytes, Raw compressed size: %u bytes, Final compressed size: %u bytes, Metadata size: %u bytes (Ratio: %.2f%%, CacheLineSize: %u)\n",
+            blockSize, raw_compressed_size, compressedSize, metadataSize, req.comprRatio, cacheLineSize);
 
     // Create the request for memory with the compressed size
     auto memReq = std::make_shared<Request>(lineAddr, compressedSize, 0, 0);
 
-    // Create the packet for direct memory access
-    PacketPtr pkt = new Packet(memReq, req.isRead ? MemCmd::ReadReq : MemCmd::WriteReq);
+    // ALWAYS use WriteReq for all requests to ensure data allocation, even for reads
+    // The decompression engine will treat it as a read based on req.isRead flag
+    PacketPtr pkt = new Packet(memReq, MemCmd::WriteReq);
+    pkt->allocate(); // This will definitely allocate data for a write
 
-    // Allocate memory
-    pkt->allocate();
+    // Initialize the buffer
+    std::memset(pkt->getPtr<uint8_t>(), 0, compressedSize);
 
-    // Fill with data for write
-    if (!req.isRead) {
-        std::memset(pkt->getPtr<uint8_t>(), 0xA5, compressedSize);
-    }
+    // Store metadata at the beginning of the data
+    double* dataPtr = reinterpret_cast<double*>(pkt->getPtr<uint8_t>());
+    dataPtr[0] = req.comprRatio;
+    dataPtr[1] = req.decompLatency_ns;
 
-    // Store compression ratio in packet data
-    if (pkt->hasData() && pkt->getSize() >= sizeof(double)) {
-        *reinterpret_cast<double*>(pkt->getPtr<uint8_t>()) = req.comprRatio;
+    DPRINTF(CXLCard, "Created memory packet: addr=0x%lx, size=%u bytes, hasData=%d, isRead=%d\n",
+            pkt->getAddr(), pkt->getSize(), pkt->hasData(), req.isRead);
+
+    // Confirm data availability
+    if (!pkt->hasData()) {
+        warn("Created packet still has no data for addr 0x%lx! This will cause issues with decompression metadata.", lineAddr);
     }
 
     // Store packet in request
@@ -1376,9 +1375,6 @@ CXLController::sendRequestToMemory(CXLRequest &req, BlockTracker* tracker)
         delete req.memPkt;
     }
     req.memPkt = pkt;
-
-    DPRINTF(CXLCard, "Sending CXL Request to Memory: %s Address: 0x%lx (orig: 0x%lx) Size: %u bytes, Ratio: %.2f%% (Req: %p, BT: 0x%lx)\n",
-           req.isRead ? "Read" : "Write", lineAddr, req.addr, compressedSize, req.comprRatio, &req, tracker->getBlockAddr());
 
     // Track memory request
     outstandingMemReqs[lineAddr] = &req;
@@ -1501,7 +1497,7 @@ CXLController::loadNextTraceBatch()
     unsigned batchCount = 0;
     std::string line;
     Tick latestTick = lastBatchTick;
-    Tick tick_time;
+    Tick tick_time = lastBatchTick;
 
     while (batchCount < batchSize && std::getline(traceFileStream, line)) {
         // Skip comment lines starting with //
@@ -1519,8 +1515,9 @@ CXLController::loadNextTraceBatch()
         Addr addr;
         double time_us;
         double comprRatio;
+        double decompLatency_ns;
 
-        if (!(iss >> rw >> std::hex >> addr >> std::dec >> time_us >> comprRatio)) {
+        if (!(iss >> rw >> std::hex >> addr >> std::dec >> time_us >> comprRatio >> decompLatency_ns)) {
             warn("Ignoring malformed line in trace file: %s", line);
             continue;
         }
@@ -1531,6 +1528,7 @@ CXLController::loadNextTraceBatch()
         req->addr = addr;
         req->time_us = time_us;
         req->comprRatio = comprRatio;
+        req->decompLatency_ns = decompLatency_ns;
 
         // Convert to ticks for tracking
         tick_time = time_us * gem5::sim_clock::as_float::us;

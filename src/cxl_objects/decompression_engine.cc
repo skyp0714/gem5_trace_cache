@@ -180,9 +180,6 @@ DecompressionEngine::getPort(const std::string &if_name, PortID idx)
 bool
 DecompressionEngine::CXLSidePort::recvTimingReq(PacketPtr pkt)
 {
-    // DecompressionEngine now only handles large read requests that need chunking.
-    fatal_if(!pkt->isRead(), "DecompressionEngine received non-read request from CXL controller. Addr: %#x, Size: %u", pkt->getAddr(), pkt->getSize());
-
     DPRINTF(DecompEngine, "Received large read request for addr %#x, size %u from CXL controller.\n",
             pkt->getAddr(), pkt->getSize());
 
@@ -194,6 +191,14 @@ DecompressionEngine::CXLSidePort::recvTimingReq(PacketPtr pkt)
 
     DecompressionRequest* parentReq = new DecompressionRequest(pkt, curTick());
     parentReq->isChunk = false; // This is a parent request
+
+    // Extract decompression latency if available in packet data
+    if (pkt->hasData() && pkt->getSize() >= sizeof(double) * 2) {
+        const double* dataPtr = reinterpret_cast<const double*>(pkt->getConstPtr<uint8_t>());
+        parentReq->decompLatency_ns = dataPtr[1]; // Get decompression latency from second double
+        DPRINTF(DecompEngine, "Extracted decompLatency=%.2f ns from packet data\n",
+                parentReq->decompLatency_ns);
+    }
 
     // Calculate the number of chunks
     if (pkt->getSize() <= owner->cache_line_size) {
@@ -273,7 +278,7 @@ DecompressionEngine::sendNextChunk(DecompressionRequest* parentReq, unsigned chu
                  }
                  delete[] parentReq->responseData;
                  parentReq->responseData = nullptr;
-                 if (parentReq->pkt->isRead()) parentReq->pkt->makeResponse(); // Ensure it's a response
+                 parentReq->pkt->makeResponse(); // Ensure it's a response
 
                  decompression_queue.push(parentReq);
                  tryScheduleDecompression();
@@ -642,8 +647,17 @@ DecompressionEngine::handleResponse(PacketPtr memRespPkt)
     // Schedule SendReadinessUpdateEvent only if not all chunks are completed.
     // If all chunks are completed, the subsequent completeDecompression will serve as the final update.
     if (parentReq->completedChunks < parentReq->totalChunks) {
-        Tick decompTime = (block_size * 150000) / 4096; // Scaled latency
-        decompTime = std::max(decompTime, Tick(10000)); // Minimum latency
+        Tick decompTime;
+
+        if (parentReq->decompLatency_ns > 0) {
+            // Convert nanoseconds to picoseconds and divide by total chunks
+            decompTime = (parentReq->decompLatency_ns * 1000) / parentReq->totalChunks;
+        } else {
+            // Fallback to original calculation
+            decompTime = (block_size * 150000) / 4096; // Scaled latency
+        }
+
+        decompTime = std::max(decompTime, Tick(1000)); // Minimum latency
 
         // Calculate readiness NOW at scheduling time, not when the event fires
         unsigned currentReadyCachelines = calculateReadyCachelines(parentReq);
@@ -657,9 +671,9 @@ DecompressionEngine::handleResponse(PacketPtr memRespPkt)
 
         schedule(event, curTick() + decompTime);
 
-        DPRINTF(DecompEngine, "ParentReq %p: Scheduled readiness update with %u/%u cachelines ready for tick %llu (delay %llu ps).\n",
+        DPRINTF(DecompEngine, "ParentReq %p: Scheduled readiness update with %u/%u cachelines ready for tick %llu (delay %llu ps, decompLatency=%.2f ns).\n",
                 parentReq, currentReadyCachelines, (block_size / cache_line_size),
-                curTick() + decompTime, decompTime);
+                curTick() + decompTime, decompTime, parentReq->decompLatency_ns);
     }
 
 
@@ -684,21 +698,20 @@ DecompressionEngine::handleResponse(PacketPtr memRespPkt)
         }
 
         // Make sure the command is a response and data flags are set
-        if (parentReq->pkt->isRead()) {
-            if (parentReq->pkt->needsResponse()) {
-                DPRINTF(DecompEngine, "ParentReq %p: Calling makeResponse() for CXL Pkt %p (current cmd: %s).\n",
+
+        if (parentReq->pkt->needsResponse()) {
+            DPRINTF(DecompEngine, "ParentReq %p: Calling makeResponse() for CXL Pkt %p (current cmd: %s).\n",
+                    parentReq, parentReq->pkt, parentReq->pkt->cmdString());
+            parentReq->pkt->makeResponse();
+            DPRINTF(DecompEngine, "ParentReq %p: CXL Pkt %p is now a %s. HasData: %d, Size: %u\n",
+                    parentReq, parentReq->pkt, parentReq->pkt->cmdString(), parentReq->pkt->hasData(), parentReq->pkt->getSize());
+        } else {
+            DPRINTF(DecompEngine, "ParentReq %p: CXL Pkt %p (cmd: %s, size: %u) already a response or does not need makeResponse(). Skipping.\n",
+                    parentReq, parentReq->pkt, parentReq->pkt->cmdString(), parentReq->pkt->getSize());
+            // Ensure it is indeed a response if needsResponse() is false
+            if (!parentReq->pkt->isResponse()) {
+                warn("ParentReq %p: CXL Pkt %p (cmd: %s) was expected to be a response, but isNot. This might indicate an issue.",
                         parentReq, parentReq->pkt, parentReq->pkt->cmdString());
-                parentReq->pkt->makeResponse();
-                DPRINTF(DecompEngine, "ParentReq %p: CXL Pkt %p is now a %s. HasData: %d, Size: %u\n",
-                        parentReq, parentReq->pkt, parentReq->pkt->cmdString(), parentReq->pkt->hasData(), parentReq->pkt->getSize());
-            } else {
-                DPRINTF(DecompEngine, "ParentReq %p: CXL Pkt %p (cmd: %s, size: %u) already a response or does not need makeResponse(). Skipping.\n",
-                        parentReq, parentReq->pkt, parentReq->pkt->cmdString(), parentReq->pkt->getSize());
-                // Ensure it is indeed a response if needsResponse() is false
-                if (!parentReq->pkt->isResponse()) {
-                    warn("ParentReq %p: CXL Pkt %p (cmd: %s) was expected to be a response, but isNot. This might indicate an issue.",
-                         parentReq, parentReq->pkt, parentReq->pkt->cmdString());
-                }
             }
         }
 
@@ -738,9 +751,21 @@ DecompressionEngine::tryScheduleDecompression()
 void
 DecompressionEngine::scheduleDecompression(DecompressionRequest* req)
 {
-    // Calculate decompression latency (same logic as before)
-    Tick decompTime = (block_size * 150000) / 4096; // Scaled latency based on 4KB block
-    decompTime = std::max(decompTime, Tick(10000)); // Minimum latency of 10ns (10000 ps)
+    // Calculate decompression latency based on the provided decompression latency
+    Tick decompTime;
+
+    if (req->decompLatency_ns > 0) {
+        // Convert nanoseconds to picoseconds and divide by total chunks
+        decompTime = (req->decompLatency_ns * 1000) / req->totalChunks;
+        DPRINTF(DecompEngine, "Using provided decompLatency %.2f ns / %u chunks = %.2f ns per chunk\n",
+                req->decompLatency_ns, req->totalChunks, req->decompLatency_ns / req->totalChunks);
+    } else {
+        // Fallback to original calculation if no latency provided
+        decompTime = (block_size * 150000) / 4096; // Scaled latency based on 4KB block
+        DPRINTF(DecompEngine, "No decompLatency provided, using fallback calculation: %llu ps\n", decompTime);
+    }
+
+    decompTime = std::max(decompTime, Tick(1000)); // Minimum latency of 10ns (10000 ps)
 
     // Schedule decompression completion event
     DecompressionEngine::DecompressionEvent* event = new DecompressionEngine::DecompressionEvent(this, req);

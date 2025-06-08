@@ -30,7 +30,7 @@ def generate_trace(num_pages, avg_interval, total_length, output_file):
         # Write the header
         f.write("// CXL Trace automatically generated\n")
         f.write(
-            "// Format: <R/W> <Address(hex)> <Time(us)> <CompressionRatio(%)>\n"
+            "// Format: <R/W> <Address(hex)> <Time(us)> <CompressionRatio(%)> <DecompLatency(ns)>\n"
         )
         f.write(
             f"// Parameters: {num_pages} pages, {avg_interval} us avg interval, {total_length} requests\n\n"
@@ -61,12 +61,15 @@ def generate_trace(num_pages, avg_interval, total_length, output_file):
             # Random compression ratio between 45% and 55%
             compression_ratio = round(random.uniform(45.0, 55.0), 1)
 
+            # Random decompression latency between 100 and 300 nanoseconds
+            decomp_latency = round(random.uniform(100.0, 300.0), 1)
+
             # Get timestamp (in microseconds)
             timestamp = round(timestamps[i], 3)
 
             # Write the request to the file
             f.write(
-                f"{req_type} 0x{address:x} {timestamp:.3f} {compression_ratio:.1f}\n"
+                f"{req_type} 0x{address:x} {timestamp:.3f} {compression_ratio:.1f} {decomp_latency:.1f}\n"
             )
 
     print(f"Generated {total_length} trace requests in {output_file}")
@@ -89,7 +92,7 @@ def main():
         "-i",
         "--interval",
         type=float,
-        default=0.5,
+        default=0.3,
         help="Average interval between requests in microseconds",
     )
     parser.add_argument(

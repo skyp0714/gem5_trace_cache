@@ -35,6 +35,7 @@ struct CXLRequest
     Addr addr;          // Memory address
     double time_us;     // Time in microseconds (floating point for precise timing)
     double comprRatio;  // Compression ratio
+    double decompLatency_ns; // Decompression latency in nanoseconds
 
     // Packet pointer for pending requests
     PacketPtr pkt = nullptr;

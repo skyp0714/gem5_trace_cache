@@ -60,7 +60,7 @@ parser.add_argument(
 parser.add_argument(
     "--compression-block-size",
     type=int,
-    default=64,
+    default=4096,
     choices=[64, 128, 256, 512, 1024, 2048, 4096],
     help="Compression block size in bytes (64B to 4KB)",
 )

@@ -43,11 +43,15 @@ struct DecompressionRequest {
     Addr blockAddr;                 // Block address for readiness updates
     unsigned readyCachelines;       // Number of cachelines ready in block
 
+    // NEW: For decompression latency
+    double decompLatency_ns;        // Decompression latency in nanoseconds
+
     DecompressionRequest(PacketPtr _pkt, Tick _time)
         : pkt(_pkt), respPkt(nullptr), arrivalTime(_time), readyToRespond(false),
           isChunk(false), parentRequest(nullptr), responseData(nullptr),
           chunkIndex(0), totalChunks(0), completedChunks(0), // totalChunks default to 0, set explicitly for parents
-          isReadinessUpdate(false), blockAddr(0), readyCachelines(0) {}
+          isReadinessUpdate(false), blockAddr(0), readyCachelines(0),
+          decompLatency_ns(0.0) {}
 
     // Destructor to clean up dynamically allocated resources if any owned by this struct directly
     ~DecompressionRequest() {
@@ -92,7 +96,7 @@ struct DecompressionRequest {
           responseData(other.responseData), chunkIndex(other.chunkIndex),
           totalChunks(other.totalChunks), completedChunks(other.completedChunks),
           isReadinessUpdate(other.isReadinessUpdate), blockAddr(other.blockAddr),
-          readyCachelines(other.readyCachelines) {
+          readyCachelines(other.readyCachelines), decompLatency_ns(other.decompLatency_ns) {
         other.pkt = nullptr;
         other.respPkt = nullptr;
         other.parentRequest = nullptr;
@@ -131,6 +135,7 @@ struct DecompressionRequest {
             isReadinessUpdate = other.isReadinessUpdate;
             blockAddr = other.blockAddr;
             readyCachelines = other.readyCachelines;
+            decompLatency_ns = other.decompLatency_ns;
 
             other.pkt = nullptr;
             other.respPkt = nullptr;
