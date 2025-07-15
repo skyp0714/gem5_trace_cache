@@ -180,14 +180,19 @@ class DecompressionEngine : public ClockedObject
       private:
         /// The decompression engine this port belongs to
         DecompressionEngine *owner;
+        /// The index of this port
+        unsigned portIndex;
 
       public:
-        MemSidePort(const std::string &_name, DecompressionEngine *_owner)
-            : RequestPort(_name), owner(_owner) {}
+        MemSidePort(const std::string &_name, DecompressionEngine *_owner, unsigned _index)
+            : RequestPort(_name), owner(_owner), portIndex(_index) {}
 
         bool recvTimingResp(PacketPtr pkt) override;
 
         void recvReqRetry() override;
+
+        // Getter for port index
+        unsigned getIndex() const { return portIndex; }
     };
 
     /**
@@ -302,8 +307,24 @@ class DecompressionEngine : public ClockedObject
     /// CXL side port
     CXLSidePort cxlPort;
 
-    /// Memory side port
-    MemSidePort memPort;
+    /// Memory side ports
+    MemSidePort memPort0;
+    MemSidePort memPort1;
+    MemSidePort memPort2;
+    MemSidePort memPort3;
+
+    static const unsigned NUM_MEMORY_PORTS = 4;
+
+    MemSidePort* memPorts[NUM_MEMORY_PORTS];
+
+    /// Track which memory port is stalled
+    bool memoryPortStalled[NUM_MEMORY_PORTS];
+
+    /// Next port to use for round-robin assignment (not used with interleaving)
+    unsigned nextMemoryPortIndex;
+
+    /// Per-port retry queues for stalled memory requests
+    std::queue<DecompressionRequest*> memPortRetryQueues[NUM_MEMORY_PORTS];
 
     /// Queue for requests that received memory response and wait for decompression engine
     std::queue<DecompressionRequest*> decompression_queue; // Holds parent requests ready for decompression
@@ -351,6 +372,30 @@ class DecompressionEngine : public ClockedObject
     ScheduleMemSendEvent memSendEvent;
     bool memSendEventScheduled; // To prevent scheduling multiple send events
 
+    /// Interleaving parameters for memory port selection
+    const unsigned interleavingLowBit;
+    const unsigned interleavingBits;
+
+    /**
+     * Select memory port based on address interleaving
+     * @param addr Memory address to access
+     * @return Index of port to use based on interleaving bits
+     */
+    unsigned selectMemoryPort(Addr addr);
+
+    /**
+     * Try sending requests from the retry queue for a specific port
+     * @param portIndex The index of the port to retry
+     */
+    void tryMemPortRetry(unsigned portIndex);
+
+    /**
+     * Send a request to a specific memory port
+     * @param req The request to send
+     * @param portIndex The index of the port to use
+     * @return True if successful, false if port is busy
+     */
+    bool sendToMemoryPort(DecompressionRequest* req, unsigned portIndex);
 
   public:
     DecompressionEngine(const DecompressionEngineParams &params);

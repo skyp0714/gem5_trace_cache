@@ -9,7 +9,11 @@ class DecompressionEngine(ClockedObject):
 
     # Ports
     cxl_side_port = ResponsePort("Port connected to the CXL controller")
-    mem_side_port = RequestPort("Port connected to memory")
+
+    mem_side_port_0 = RequestPort("Port 0 connected to memory")
+    mem_side_port_1 = RequestPort("Port 1 connected to memory")
+    mem_side_port_2 = RequestPort("Port 2 connected to memory")
+    mem_side_port_3 = RequestPort("Port 3 connected to memory")
 
     # Parameters
     # Note: decompression_latency is still kept for backward compatibility,
@@ -28,4 +32,12 @@ class DecompressionEngine(ClockedObject):
     )
     inter_memory_request_delay_ticks = Param.Cycles(
         5000, "Delay in ticks between memory requests sent by the engine"
+    )
+
+    # Add interleaving parameters
+    interleaving_low_bit = Param.Unsigned(
+        6, "Low bit for address interleaving"
+    )
+    interleaving_bits = Param.Unsigned(
+        2, "Number of bits used for interleaving"
     )

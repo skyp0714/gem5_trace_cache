@@ -8,6 +8,8 @@
 namespace gem5
 {
 
+const unsigned DecompressionEngine::NUM_MEMORY_PORTS;
+
 // ChunkSendEvent process method
 void
 DecompressionEngine::ChunkSendEvent::process() {
@@ -19,12 +21,6 @@ void
 DecompressionEngine::ScheduleMemSendEvent::process() {
     engine->memSendEventScheduled = false; // Event is now processing
 
-    if (engine->memoryStalled) {
-        DPRINTF(DecompEngine, "MemSendEvent: Memory port stalled, deferring send.\n");
-        // Do not reschedule here; recvReqRetry will trigger tryScheduleNextMemSend
-        return;
-    }
-
     if (engine->memSendCandidateQueue.empty()) {
         DPRINTF(DecompEngine, "MemSendEvent: Queue is empty, nothing to send.\n");
         return;
@@ -35,56 +31,162 @@ DecompressionEngine::ScheduleMemSendEvent::process() {
     assert(req_to_send && req_to_send->pkt);
 
     DPRINTF(DecompEngine, "MemSendEvent: Attempting to send req %p (pkt addr %#x, type: %s) to memory.\n",
-           req_to_send, req_to_send->pkt->getAddr(), req_to_send->isChunk ? "Chunk" : "Parent"); // Parent type should not happen here if only chunks are sent to memory
+           req_to_send, req_to_send->pkt->getAddr(), req_to_send->isChunk ? "Chunk" : "Parent");
 
-    bool success = engine->memPort.sendTimingReq(req_to_send->pkt);
+    // Select port based on address interleaving
+    unsigned portIndex = engine->selectMemoryPort(req_to_send->pkt->getAddr());
+
+    // Check if the selected port is stalled
+    if (engine->memoryPortStalled[portIndex]) {
+        // Add to the port's retry queue instead of trying other ports
+        engine->memPortRetryQueues[portIndex].push(req_to_send);
+        engine->memSendCandidateQueue.pop();
+
+        DPRINTF(DecompEngine, "MemSendEvent: Memory port %u is stalled for addr %#x, added to port's retry queue.\n",
+                portIndex, req_to_send->pkt->getAddr());
+
+        // Try to schedule the next send for other addresses
+        engine->tryScheduleNextMemSend();
+        return;
+    }
+
+    bool success = engine->sendToMemoryPort(req_to_send, portIndex);
 
     if (success) {
         engine->memSendCandidateQueue.pop();
-        // Only chunks should be in pendingRequests, as parent requests are handled differently
         if (req_to_send->isChunk) {
             engine->pendingRequests[req_to_send->pkt->getAddr()] = req_to_send;
         } else {
-            // This case (parent request directly to memory) should be reviewed if it's valid under new assumptions.
-            // For now, let's assume it might be a special direct send not part of chunking.
-            // However, current logic implies only chunks go into pendingRequests this way.
             warn("MemSendEvent: Non-chunk request %p sent to memory and added to pendingRequests. Review if this is intended.", req_to_send);
             engine->pendingRequests[req_to_send->pkt->getAddr()] = req_to_send;
         }
-        engine->nextMemSendAvailableAt = engine->clockEdge() + engine->interMemoryRequestDelay; // Corrected access
-        DPRINTF(DecompEngine, "MemSendEvent: Successfully sent req %p to memory. Next send available at %llu.\n",
-                req_to_send, engine->nextMemSendAvailableAt);
+        engine->nextMemSendAvailableAt = engine->clockEdge() + engine->interMemoryRequestDelay;
+        DPRINTF(DecompEngine, "MemSendEvent: Successfully sent req %p to memory port %d (interleaved). Next send available at %llu.\n",
+                req_to_send, portIndex, engine->nextMemSendAvailableAt);
     } else {
-        engine->memoryStalled = true;
-        DPRINTF(DecompEngine, "MemSendEvent: Memory port busy for req %p. Will retry upon recvReqRetry.\n", req_to_send);
-        // Request remains at the front of memSendCandidateQueue
+        // This port is now stalled, add request to port's retry queue
+        engine->memoryPortStalled[portIndex] = true;
+        engine->memPortRetryQueues[portIndex].push(req_to_send);
+        engine->memSendCandidateQueue.pop();
+
+        DPRINTF(DecompEngine, "MemSendEvent: Memory port %d busy for req %p, added to port's retry queue.\n",
+                portIndex, req_to_send);
     }
 
     // Try to schedule the next send if conditions allow
     engine->tryScheduleNextMemSend();
 }
 
+// Modify the method to select memory port based on address interleaving only
+unsigned
+DecompressionEngine::selectMemoryPort(Addr addr) {
+    if (addr >= 0x800000000) {
+        warn("Address %#x is outside of decompression memory range (0-32GB). Using port 0.\n", addr);
+        return 0;
+    }
+
+    // Extract the interleaved bits from the address
+    unsigned interleavedBits = (addr >> interleavingLowBit) & ((1 << interleavingBits) - 1);
+
+    // 포트 번호가 유효한지 검증
+    if (interleavedBits >= NUM_MEMORY_PORTS) {
+        warn("Calculated port %u for address %#x is invalid (max port: %u). Using port %u instead.\n",
+             interleavedBits, addr, NUM_MEMORY_PORTS - 1, interleavedBits % NUM_MEMORY_PORTS);
+        // 유효하지 않은 경우 모듈로 연산으로 안전한 값 반환
+        return interleavedBits % NUM_MEMORY_PORTS;
+    }
+
+    DPRINTF(DecompEngine, "Selected port %u for address %#x based on interleaving (bits %u-%u = %u)\n",
+            interleavedBits, addr, interleavingLowBit,
+            interleavingLowBit + interleavingBits - 1, interleavedBits);
+
+    return interleavedBits;
+}
+
+// Add method to process retry queue for a specific port
+void
+DecompressionEngine::tryMemPortRetry(unsigned portIndex) {
+    if (memPortRetryQueues[portIndex].empty()) {
+        DPRINTF(DecompEngine, "No requests in retry queue for port %u\n", portIndex);
+        return;
+    }
+
+    // Try to send the first request in the queue
+    DecompressionRequest* req = memPortRetryQueues[portIndex].front();
+
+    DPRINTF(DecompEngine, "Trying to send request %p to port %u from retry queue\n",
+            req, portIndex);
+
+    bool success = sendToMemoryPort(req, portIndex);
+
+    if (success) {
+        // Remove from retry queue
+        memPortRetryQueues[portIndex].pop();
+
+        // Add to pending requests
+        if (req->isChunk) {
+            pendingRequests[req->pkt->getAddr()] = req;
+        } else {
+            warn("MemPortRetry: Non-chunk request %p sent to memory and added to pendingRequests.", req);
+            pendingRequests[req->pkt->getAddr()] = req;
+        }
+
+        DPRINTF(DecompEngine, "Successfully sent req %p to memory port %u from retry queue\n",
+                req, portIndex);
+
+        // Try more from the same queue if available
+        if (!memPortRetryQueues[portIndex].empty()) {
+            tryMemPortRetry(portIndex);
+        }
+    } else {
+        // Port is still stalled
+        memoryPortStalled[portIndex] = true;
+        DPRINTF(DecompEngine, "Port %u still stalled for retry request %p\n",
+                portIndex, req);
+    }
+}
+
+// Update constructor to initialize ports as members
 DecompressionEngine::DecompressionEngine(const DecompressionEngineParams &params)
     : ClockedObject(params),
       cxlPort(name() + ".cxl_side_port", this),
-      memPort(name() + ".mem_side_port", this),
-      memoryStalled(false),
+      memPort0(name() + ".mem_side_port_0", this, 0),
+      memPort1(name() + ".mem_side_port_1", this, 1),
+      memPort2(name() + ".mem_side_port_2", this, 2),
+      memPort3(name() + ".mem_side_port_3", this, 3),
+      memoryPortStalled{false, false, false, false}, // 4개 포트에 대한 stalled 플래그 초기화
+      nextMemoryPortIndex(0),
+      interleavingLowBit(params.interleaving_low_bit),
+      interleavingBits(params.interleaving_bits),
       responseStalled(false),
       respondingRequest(nullptr),
       block_size(params.block_size),
       cache_line_size(params.cache_line_size),
       num_engines(params.num_engines),
       active_decompressions(0),
-      chunkSendDelay(params.chunk_send_delay_ticks), // Use param here
+      chunkSendDelay(params.chunk_send_delay_ticks),
       cxlReqStalled(false),
       nextMemSendAvailableAt(0),
-      interMemoryRequestDelay(params.inter_memory_request_delay_ticks), // Initialize here
+      interMemoryRequestDelay(params.inter_memory_request_delay_ticks),
       memSendEvent(this),
       memSendEventScheduled(false)
 {
     fatal_if(num_engines == 0, "DecompressionEngine must have at least one engine.");
-    DPRINTF(DecompEngine, "Initialized with %u decompression engines. Chunk creation delay: %llu ticks. Mem send delay: %llu ticks.\n",
-            num_engines, chunkSendDelay, interMemoryRequestDelay);
+    fatal_if(NUM_MEMORY_PORTS != (1U << interleavingBits),
+             "Number of memory ports (%u) must match the interleaving width (2^%u = %u)",
+             NUM_MEMORY_PORTS, interleavingBits, (1U << interleavingBits));
+
+    // memPorts 배열에 포인터 할당
+    memPorts[0] = &memPort0;
+    memPorts[1] = &memPort1;
+    memPorts[2] = &memPort2;
+    memPorts[3] = &memPort3;
+
+    DPRINTF(DecompEngine, "Initialized with %u decompression engines and %u memory ports. "
+            "Using address interleaving: bits %u-%u. "
+            "Each memory port has its own retry queue.\n",
+            num_engines, NUM_MEMORY_PORTS, interleavingLowBit,
+            interleavingLowBit + interleavingBits - 1);
 }
 
 DecompressionEngine::~DecompressionEngine()
@@ -163,6 +265,20 @@ DecompressionEngine::~DecompressionEngine()
         delete respondingRequest;
         respondingRequest = nullptr;
     }
+
+    // Clean up per-port retry queues
+    for (auto& queue : memPortRetryQueues) {
+        while (!queue.empty()) {
+            DecompressionRequest* req = queue.front();
+            queue.pop();
+            if (req) {
+                if (req->pkt) {
+                    delete req->pkt;
+                }
+                delete req;
+            }
+        }
+    }
 }
 
 Port &
@@ -170,8 +286,14 @@ DecompressionEngine::getPort(const std::string &if_name, PortID idx)
 {
     if (if_name == "cxl_side_port") {
         return cxlPort;
-    } else if (if_name == "mem_side_port") {
-        return memPort;
+    } else if (if_name == "mem_side_port_0") {
+        return memPort0;
+    } else if (if_name == "mem_side_port_1") {
+        return memPort1;
+    } else if (if_name == "mem_side_port_2") {
+        return memPort2;
+    } else if (if_name == "mem_side_port_3") {
+        return memPort3;
     } else {
         return ClockedObject::getPort(if_name, idx);
     }
@@ -437,8 +559,11 @@ DecompressionEngine::CXLSidePort::trySendRetries() {
 Tick
 DecompressionEngine::CXLSidePort::recvAtomic(PacketPtr pkt)
 {
-    // Forward the request to memory
-    return owner->memPort.sendAtomic(pkt);
+    // Select port based on address interleaving
+    unsigned portIndex = owner->selectMemoryPort(pkt->getAddr());
+
+    // Forward the request to the selected memory port
+    return owner->memPorts[portIndex]->sendAtomic(pkt);
 }
 
 void
@@ -465,7 +590,6 @@ DecompressionEngine::CXLSidePort::recvFunctional(PacketPtr pkt)
     // We need to iterate over a copy or be careful if trySatisfyFunctional could trigger state changes.
     // For now, let's assume simple iteration is fine for functional check.
     // If memSendCandidateQueue can be modified by trySatisfyFunctional indirectly, this needs rework.
-    // A safer approach for queues is to pop, check, and push to a temporary queue, then restore.
     std::queue<DecompressionRequest*> current_candidates = owner->memSendCandidateQueue; // Make a copy for iteration
     while(!current_candidates.empty()){
         DecompressionRequest* req = current_candidates.front();
@@ -500,14 +624,28 @@ DecompressionEngine::CXLSidePort::recvFunctional(PacketPtr pkt)
     owner->completed_queue = std::move(temp_q);
     if(found) return;
 
-    owner->memPort.sendFunctional(pkt);
+    // After checking all internal structures, forward to memory
+    // Select port based on address interleaving
+    unsigned portIndex = owner->selectMemoryPort(pkt->getAddr());
+
+    assert(owner->memPorts[portIndex] != nullptr);
+    owner->memPorts[portIndex]->sendFunctional(pkt);
 }
 
 AddrRangeList
 DecompressionEngine::CXLSidePort::getAddrRanges() const
 {
-    // Simply return the same list as the memory side port
-    return owner->memPort.getAddrRanges();
+    // Combine address ranges from all memory ports
+    AddrRangeList ranges;
+
+    for (unsigned i = 0; i < owner->NUM_MEMORY_PORTS; i++) {
+        if (owner->memPorts[i]) {
+            AddrRangeList port_ranges = owner->memPorts[i]->getAddrRanges();
+            ranges.insert(ranges.end(), port_ranges.begin(), port_ranges.end());
+        }
+    }
+
+    return ranges;
 }
 
 bool
@@ -523,10 +661,14 @@ DecompressionEngine::MemSidePort::recvTimingResp(PacketPtr pkt)
 void
 DecompressionEngine::MemSidePort::recvReqRetry()
 {
-    DPRINTF(DecompEngine, "Received request retry from memory\n");
+    DPRINTF(DecompEngine, "Received request retry from memory on port %u\n", portIndex);
 
-    // We were stalled; try sending the next request from the memory retry queue
-    owner->memoryStalled = false;
+    // Clear stall flag for this specific port
+    owner->memoryPortStalled[portIndex] = false;
+
+    // Try processing retry queue for this specific port
+    owner->tryMemPortRetry(portIndex);
+
     // Try to schedule next send from the candidate queue
     owner->tryScheduleNextMemSend();
 }
@@ -926,4 +1068,16 @@ DecompressionEngine::sendReadinessUpdate(Addr block_addr_for_update, unsigned nu
     }
 }
 
+bool
+DecompressionEngine::sendToMemoryPort(DecompressionRequest* req, unsigned portIndex) {
+    assert(portIndex < NUM_MEMORY_PORTS);
+    assert(memPorts[portIndex] != nullptr); // 포트가 초기화되었는지 확인
+
+    MemSidePort* port = memPorts[portIndex];
+
+    DPRINTF(DecompEngine, "Sending request for addr %#x to memory port %u (name %s)\n",
+            req->pkt->getAddr(), portIndex, port->name());
+
+    return port->sendTimingReq(req->pkt);
+}
 } // namespace gem5

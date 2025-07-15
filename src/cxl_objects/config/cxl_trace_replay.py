@@ -119,8 +119,20 @@ system.mem_ranges = [
 ]
 
 # Create two separate memory buses
-system.decompbus = SystemXBar(max_routing_table_size=4096)  # For decompression
-system.transbus = SystemXBar(max_routing_table_size=4096)  # For translation
+system.transbus = SystemXBar(
+    width=64, max_routing_table_size=4096
+)  # For translation
+
+# Configure 4 memory controllers for decompression (0-32GB range)
+decomp_mem_channels = 4
+decomp_intlv_granularity = 64  # 64B interleaving granularity (explicit)
+
+for i in range(decomp_mem_channels):
+    setattr(
+        system,
+        f"decomp_xbar_{i}",
+        SystemXBar(width=128, max_routing_table_size=4096),
+    )
 
 # Create a simple cache
 system.l1cache = Cache(
@@ -150,19 +162,16 @@ system.cxl_controller = CXLController(
 # Connect the CXL controller to cache
 system.cxl_controller.cache_port = system.l1cache.cpu_side
 
-# Configure 4 memory controllers for decompression (0-32GB range)
-decopm_mem_channels = 4
-decomp_intlv_granularity = 64  # 64B interleaving granularity (explicit)
-
 # Calculate interleaving parameters for decompression
-decomp_intlv_bits = int(math.log2(decopm_mem_channels))
+decomp_intlv_bits = int(math.log2(decomp_mem_channels))
 decomp_intlv_low_bit = int(math.log2(decomp_intlv_granularity))
 decomp_xor_high_bit = 0  # No XOR
 
 # Create decompression memory controllers with lower latency
-for i in range(decopm_mem_channels):
+for i in range(decomp_mem_channels):
     mem_ctrl = MemCtrl()
     mem_ctrl.dram = DDR4_2400_16x4()  # Higher bandwidth memory
+    mem_ctrl.dram.banks_per_rank = 32
     # Configure DRAM timing for lower latency
     mem_ctrl.dram.tCK = "0.5ns"  # 2GHz clock
     mem_ctrl.dram.tBURST = "2.5ns"  # Reduced burst time
@@ -180,7 +189,8 @@ for i in range(decopm_mem_channels):
         intlvBits=decomp_intlv_bits,
         intlvMatch=i,
     )
-    mem_ctrl.port = system.decompbus.mem_side_ports
+    xbar = getattr(system, f"decomp_xbar_{i}")
+    mem_ctrl.port = xbar.mem_side_ports
     setattr(system, f"decomp_mem_ctrl_{i}", mem_ctrl)
 
 # Configure 2 memory controllers for translation (32-64GB range)
@@ -224,13 +234,21 @@ system.decompression_engine = DecompressionEngine(
     block_size=args.compression_block_size,
     cache_line_size=args.cacheline_size,
     num_engines=4,
-    chunk_send_delay_ticks=1,  # Reduced from 1000
-    inter_memory_request_delay_ticks=5000,  # Reduced from 5000
+    chunk_send_delay_ticks=0,  # Reduced from 1000
+    inter_memory_request_delay_ticks=0,  # Reduced from 5000
+    interleaving_low_bit=decomp_intlv_low_bit,  # Match memory controller interleaving
+    interleaving_bits=decomp_intlv_bits,  # Match memory controller interleaving
 )
 
 # Connect decompression engine between CXL controller and decompression bus
 system.cxl_controller.mem_port = system.decompression_engine.cxl_side_port
-system.decompression_engine.mem_side_port = system.decompbus.cpu_side_ports
+
+for i in range(decomp_mem_channels):
+    port_name = f"mem_side_port_{i}"
+    xbar = getattr(system, f"decomp_xbar_{i}")
+
+    # DecompressionEngine의 해당 포트를 xbar에 연결
+    setattr(system.decompression_engine, port_name, xbar.cpu_side_ports)
 
 # Connect system port to translation bus (for system access)
 system.system_port = system.transbus.cpu_side_ports
