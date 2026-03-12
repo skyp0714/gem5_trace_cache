@@ -10,18 +10,27 @@ import m5
 import m5.debug
 from m5.objects import *
 
+_THIS_DIR = os.path.dirname(os.path.abspath(__file__))
+_CXL_OBJECTS_DIR = os.path.dirname(_THIS_DIR)
+_DEFAULT_TRACE_FILE = os.path.join(
+    _CXL_OBJECTS_DIR, "trace", "generated_trace.txt"
+)
+_DEFAULT_OUTPUT_FILE = os.path.join(
+    _CXL_OBJECTS_DIR, "results", "cxl_latency_log.txt"
+)
+
 # Parse command line arguments
 parser = argparse.ArgumentParser()
 parser.add_argument(
     "--trace-file",
     type=str,
-    default="/home/hnpark2/traceCache/gem5/src/cxl_objects/trace/generated_trace.txt",
+    default=_DEFAULT_TRACE_FILE,
     help="Path to the trace file",
 )
 parser.add_argument(
     "--output-file",
     type=str,
-    default="/home/hnpark2/traceCache/gem5/src/cxl_objects/results/cxl_latency_log.txt",
+    default=_DEFAULT_OUTPUT_FILE,
     help="Path to the output latency log file",
 )
 parser.add_argument(
@@ -193,9 +202,10 @@ for i in range(decomp_mem_channels):
     mem_ctrl.port = xbar.mem_side_ports
     setattr(system, f"decomp_mem_ctrl_{i}", mem_ctrl)
 
-# Configure 2 memory controllers for translation (32-64GB range)
+# Configure 4 memory controllers for translation (32-64GB range)
 trans_mem_channels = 4
-trans_intlv_granularity = 64  # 64B interleaving granularity (explicit)
+# Translation lookups are block-aligned, so stripe at block granularity.
+trans_intlv_granularity = args.compression_block_size
 
 # Calculate interleaving parameters for translation
 trans_intlv_bits = int(math.log2(trans_mem_channels))

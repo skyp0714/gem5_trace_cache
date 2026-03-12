@@ -10,13 +10,13 @@ class CXLController(SimObject):
 
     # Parameter for the trace file path, with default
     trace_file = Param.String(
-        "/home/hnpark2/traceCache/gem5/src/cxl_objects/trace/simple_input.txt",
+        "/home/hnpark2/gem5_trace_cache/src/cxl_objects/trace/simple_input.txt",
         "Path to the trace file",
     )
 
     # Parameter for the output log file path
     output_file = Param.String(
-        "/home/hnpark2/traceCache/gem5/src/cxl_objects/results/cxl_latency_log.txt",
+        "/home/hnpark2/gem5_trace_cache/src/cxl_objects/results/cxl_latency_log.txt",
         "Path to the output latency log file",
     )
 

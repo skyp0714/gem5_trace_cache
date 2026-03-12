@@ -156,8 +156,7 @@ DecompressionEngine::DecompressionEngine(const DecompressionEngineParams &params
       memPort3(name() + ".mem_side_port_3", this, 3),
       memoryPortStalled{false, false, false, false}, // 4개 포트에 대한 stalled 플래그 초기화
       nextMemoryPortIndex(0),
-      interleavingLowBit(params.interleaving_low_bit),
-      interleavingBits(params.interleaving_bits),
+      memoryStalled(false),
       responseStalled(false),
       respondingRequest(nullptr),
       block_size(params.block_size),
@@ -169,7 +168,9 @@ DecompressionEngine::DecompressionEngine(const DecompressionEngineParams &params
       nextMemSendAvailableAt(0),
       interMemoryRequestDelay(params.inter_memory_request_delay_ticks),
       memSendEvent(this),
-      memSendEventScheduled(false)
+      memSendEventScheduled(false),
+      interleavingLowBit(params.interleaving_low_bit),
+      interleavingBits(params.interleaving_bits)
 {
     fatal_if(num_engines == 0, "DecompressionEngine must have at least one engine.");
     fatal_if(NUM_MEMORY_PORTS != (1U << interleavingBits),
@@ -794,18 +795,22 @@ DecompressionEngine::handleResponse(PacketPtr memRespPkt)
         if (parentReq->decompLatency_ns > 0) {
             // Convert nanoseconds to picoseconds and divide by total chunks
             decompTime = (parentReq->decompLatency_ns * 1000) / parentReq->totalChunks;
+            decompTime = std::max(decompTime, Tick(1000)); // Keep minimum for positive explicit latency
+        } else if (parentReq->decompLatency_ns == 0.0) {
+            // Explicit 0ns means bypass decompression delay.
+            decompTime = 0;
         } else {
-            // Fallback to original calculation
+            // No explicit metadata latency provided: fallback model.
             decompTime = (block_size * 150000) / 4096; // Scaled latency
+            decompTime = std::max(decompTime, Tick(1000));
         }
-
-        decompTime = std::max(decompTime, Tick(1000)); // Minimum latency
 
         // Calculate readiness NOW at scheduling time, not when the event fires
         unsigned currentReadyCachelines = calculateReadyCachelines(parentReq);
 
         // Get block address for readiness update
-        Addr block_addr_for_update = parentReq->pkt->getAddr() & ~(block_size - 1);
+        Addr block_addr_for_update =
+            parentReq->pkt->getAddr() & ~(Addr(block_size) - 1);
 
         // Create event with pre-calculated readiness value
         SendReadinessUpdateEvent* event = new SendReadinessUpdateEvent(
@@ -899,15 +904,18 @@ DecompressionEngine::scheduleDecompression(DecompressionRequest* req)
     if (req->decompLatency_ns > 0) {
         // Convert nanoseconds to picoseconds and divide by total chunks
         decompTime = (req->decompLatency_ns * 1000) / req->totalChunks;
+        decompTime = std::max(decompTime, Tick(1000)); // Keep minimum for positive explicit latency
         DPRINTF(DecompEngine, "Using provided decompLatency %.2f ns / %u chunks = %.2f ns per chunk\n",
                 req->decompLatency_ns, req->totalChunks, req->decompLatency_ns / req->totalChunks);
+    } else if (req->decompLatency_ns == 0.0) {
+        decompTime = 0;
+        DPRINTF(DecompEngine, "Using explicit zero decompLatency: bypassing decompression delay.\n");
     } else {
-        // Fallback to original calculation if no latency provided
+        // Fallback to original calculation if no latency metadata provided
         decompTime = (block_size * 150000) / 4096; // Scaled latency based on 4KB block
+        decompTime = std::max(decompTime, Tick(1000)); // Minimum latency for fallback
         DPRINTF(DecompEngine, "No decompLatency provided, using fallback calculation: %llu ps\n", decompTime);
     }
-
-    decompTime = std::max(decompTime, Tick(1000)); // Minimum latency of 10ns (10000 ps)
 
     // Schedule decompression completion event
     DecompressionEngine::DecompressionEvent* event = new DecompressionEngine::DecompressionEvent(this, req);

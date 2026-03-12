@@ -2,9 +2,13 @@
 
 import argparse
 import math
+import os
 import random
 
 import numpy as np
+
+_THIS_DIR = os.path.dirname(os.path.abspath(__file__))
+_DEFAULT_OUTPUT = os.path.join(_THIS_DIR, "generated_trace.txt")
 
 
 def generate_trace(num_pages, avg_interval, total_length, output_file):
@@ -106,7 +110,7 @@ def main():
         "-o",
         "--output",
         type=str,
-        default="/home/hnpark2/traceCache/gem5/src/cxl_objects/trace/generated_trace.txt",
+        default=_DEFAULT_OUTPUT,
         help="Output file path",
     )
 

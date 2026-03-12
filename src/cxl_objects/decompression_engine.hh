@@ -51,7 +51,7 @@ struct DecompressionRequest {
           isChunk(false), parentRequest(nullptr), responseData(nullptr),
           chunkIndex(0), totalChunks(0), completedChunks(0), // totalChunks default to 0, set explicitly for parents
           isReadinessUpdate(false), blockAddr(0), readyCachelines(0),
-          decompLatency_ns(0.0) {}
+          decompLatency_ns(-1.0) {}
 
     // Destructor to clean up dynamically allocated resources if any owned by this struct directly
     ~DecompressionRequest() {

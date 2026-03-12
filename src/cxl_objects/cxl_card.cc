@@ -1342,6 +1342,16 @@ CXLController::sendRequestToMemory(CXLRequest &req, BlockTracker* tracker)
     unsigned metadataSize = sizeof(double) * 2;
     compressedSize = std::max(compressedSize, metadataSize);
 
+    // If compression is poor (>80% of original size), skip decompression delay.
+    // The DecompressionEngine interprets decomp latency from packet metadata.
+    constexpr double decompBypassThreshold = 0.80;
+    double effectiveDecompLatencyNs = req.decompLatency_ns;
+    double compressedFraction =
+        static_cast<double>(raw_compressed_size) / static_cast<double>(blockSize);
+    if (compressedFraction > decompBypassThreshold) {
+        effectiveDecompLatencyNs = 0.0;
+    }
+
     DPRINTF(CXLCard, "Original size: %u bytes, Raw compressed size: %u bytes, Final compressed size: %u bytes, Metadata size: %u bytes (Ratio: %.2f%%, CacheLineSize: %u)\n",
             blockSize, raw_compressed_size, compressedSize, metadataSize, req.comprRatio, cacheLineSize);
 
@@ -1359,7 +1369,7 @@ CXLController::sendRequestToMemory(CXLRequest &req, BlockTracker* tracker)
     // Store metadata at the beginning of the data
     double* dataPtr = reinterpret_cast<double*>(pkt->getPtr<uint8_t>());
     dataPtr[0] = req.comprRatio;
-    dataPtr[1] = req.decompLatency_ns;
+    dataPtr[1] = effectiveDecompLatencyNs;
 
     DPRINTF(CXLCard, "Created memory packet: addr=0x%lx, size=%u bytes, hasData=%d, isRead=%d\n",
             pkt->getAddr(), pkt->getSize(), pkt->hasData(), req.isRead);
