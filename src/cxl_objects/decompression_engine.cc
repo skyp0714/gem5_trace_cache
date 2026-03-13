@@ -10,6 +10,31 @@ namespace gem5
 
 const unsigned DecompressionEngine::NUM_MEMORY_PORTS;
 
+namespace
+{
+
+Tick
+decompressionStepTick(const DecompressionRequest* req, unsigned block_size)
+{
+    if (req->decompLatency_ns > 0.0) {
+        // Interpret metadata latency as full-block latency and convert to per-step chunk time.
+        unsigned chunk_count = std::max(req->totalChunks, 1u);
+        Tick step = (req->decompLatency_ns * 1000) / chunk_count;
+        return std::max(step, Tick(1000));
+    }
+
+    if (req->decompLatency_ns == 0.0) {
+        // Explicit zero latency means bypass decompression delay.
+        return Tick(0);
+    }
+
+    // No explicit latency metadata: use fallback model.
+    Tick step = (block_size * 150000) / 4096;
+    return std::max(step, Tick(1000));
+}
+
+} // anonymous namespace
+
 // ChunkSendEvent process method
 void
 DecompressionEngine::ChunkSendEvent::process() {
@@ -790,20 +815,8 @@ DecompressionEngine::handleResponse(PacketPtr memRespPkt)
     // Schedule SendReadinessUpdateEvent only if not all chunks are completed.
     // If all chunks are completed, the subsequent completeDecompression will serve as the final update.
     if (parentReq->completedChunks < parentReq->totalChunks) {
-        Tick decompTime;
-
-        if (parentReq->decompLatency_ns > 0) {
-            // Convert nanoseconds to picoseconds and divide by total chunks
-            decompTime = (parentReq->decompLatency_ns * 1000) / parentReq->totalChunks;
-            decompTime = std::max(decompTime, Tick(1000)); // Keep minimum for positive explicit latency
-        } else if (parentReq->decompLatency_ns == 0.0) {
-            // Explicit 0ns means bypass decompression delay.
-            decompTime = 0;
-        } else {
-            // No explicit metadata latency provided: fallback model.
-            decompTime = (block_size * 150000) / 4096; // Scaled latency
-            decompTime = std::max(decompTime, Tick(1000));
-        }
+        Tick decompTime = decompressionStepTick(parentReq, block_size);
+        Tick scheduledTick = curTick() + decompTime;
 
         // Calculate readiness NOW at scheduling time, not when the event fires
         unsigned currentReadyCachelines = calculateReadyCachelines(parentReq);
@@ -816,11 +829,12 @@ DecompressionEngine::handleResponse(PacketPtr memRespPkt)
         SendReadinessUpdateEvent* event = new SendReadinessUpdateEvent(
             this, parentReq, currentReadyCachelines, block_addr_for_update);
 
-        schedule(event, curTick() + decompTime);
+        schedule(event, scheduledTick);
 
-        DPRINTF(DecompEngine, "ParentReq %p: Scheduled readiness update with %u/%u cachelines ready for tick %llu (delay %llu ps, decompLatency=%.2f ns).\n",
+        DPRINTF(DecompEngine, "ParentReq %p: Scheduled readiness update with %u/%u cachelines ready for tick %llu "
+                "(curTick %llu, step %llu ps, decompLatency=%.2f ns).\n",
                 parentReq, currentReadyCachelines, (block_size / cache_line_size),
-                curTick() + decompTime, decompTime, parentReq->decompLatency_ns);
+                scheduledTick, curTick(), decompTime, parentReq->decompLatency_ns);
     }
 
 
@@ -898,31 +912,26 @@ DecompressionEngine::tryScheduleDecompression()
 void
 DecompressionEngine::scheduleDecompression(DecompressionRequest* req)
 {
-    // Calculate decompression latency based on the provided decompression latency
-    Tick decompTime;
+    Tick decompTime = decompressionStepTick(req, block_size);
+    Tick completionTick = curTick() + decompTime;
 
     if (req->decompLatency_ns > 0) {
-        // Convert nanoseconds to picoseconds and divide by total chunks
-        decompTime = (req->decompLatency_ns * 1000) / req->totalChunks;
-        decompTime = std::max(decompTime, Tick(1000)); // Keep minimum for positive explicit latency
-        DPRINTF(DecompEngine, "Using provided decompLatency %.2f ns / %u chunks = %.2f ns per chunk\n",
+        DPRINTF(DecompEngine, "Using provided decompLatency %.2f ns / %u chunks = %.2f ns per step\n",
                 req->decompLatency_ns, req->totalChunks, req->decompLatency_ns / req->totalChunks);
     } else if (req->decompLatency_ns == 0.0) {
-        decompTime = 0;
         DPRINTF(DecompEngine, "Using explicit zero decompLatency: bypassing decompression delay.\n");
     } else {
-        // Fallback to original calculation if no latency metadata provided
-        decompTime = (block_size * 150000) / 4096; // Scaled latency based on 4KB block
-        decompTime = std::max(decompTime, Tick(1000)); // Minimum latency for fallback
-        DPRINTF(DecompEngine, "No decompLatency provided, using fallback calculation: %llu ps\n", decompTime);
+        DPRINTF(DecompEngine, "No decompLatency provided, using fallback calculation: %llu ps per step\n",
+                decompTime);
     }
 
     // Schedule decompression completion event
     DecompressionEngine::DecompressionEvent* event = new DecompressionEngine::DecompressionEvent(this, req);
-    schedule(event, curTick() + decompTime); // Schedule at current time + calculated delay
+    schedule(event, completionTick);
 
-    DPRINTF(DecompEngine, "Scheduled decompression for req %p (addr %#x) to complete at tick %llu (latency: %llu ps)\n",
-           req, req->pkt->getAddr(), curTick() + decompTime, decompTime);
+    DPRINTF(DecompEngine, "Scheduled decompression for req %p (addr %#x) to complete at tick %llu "
+            "(curTick %llu, step %llu ps)\n",
+           req, req->pkt->getAddr(), completionTick, curTick(), decompTime);
 }
 
 void

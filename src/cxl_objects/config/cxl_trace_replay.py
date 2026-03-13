@@ -18,6 +18,53 @@ _DEFAULT_TRACE_FILE = os.path.join(
 _DEFAULT_OUTPUT_FILE = os.path.join(
     _CXL_OBJECTS_DIR, "results", "cxl_latency_log.txt"
 )
+_DRAM_INTERFACES = {
+    "DDR3_1600_8x8": DDR3_1600_8x8,
+    "DDR4_2400_16x4": DDR4_2400_16x4,
+    "DDR4_2400_8x8": DDR4_2400_8x8,
+    "DDR4_2400_4x16": DDR4_2400_4x16,
+    "DDR5_4400_4x8": DDR5_4400_4x8,
+}
+
+
+def is_power_of_two(value):
+    return value > 0 and (value & (value - 1)) == 0
+
+
+def build_channel_ranges(mem_range, num_channels, intlv_granularity):
+    total_size = mem_range.size()
+    if num_channels == 1:
+        return [AddrRange(mem_range.start, size=total_size)], "contiguous"
+
+    if is_power_of_two(num_channels):
+        intlv_bits = int(math.log2(num_channels))
+        intlv_low_bit = int(math.log2(intlv_granularity))
+        ranges = []
+        for match in range(num_channels):
+            ranges.append(
+                AddrRange(
+                    mem_range.start,
+                    size=total_size,
+                    intlvHighBit=intlv_low_bit + intlv_bits - 1,
+                    xorHighBit=0,
+                    intlvBits=intlv_bits,
+                    intlvMatch=match,
+                )
+            )
+        return ranges, "striped"
+
+    # gem5 AddrRange striping requires 2^N stripes. For non-power-of-two
+    # channel counts, fall back to equal contiguous partitions.
+    base_size = total_size // num_channels
+    remainder = total_size % num_channels
+    start = mem_range.start
+    ranges = []
+    for idx in range(num_channels):
+        size = base_size + (1 if idx < remainder else 0)
+        ranges.append(AddrRange(start, size=size))
+        start += size
+    return ranges, "contiguous"
+
 
 # Parse command line arguments
 parser = argparse.ArgumentParser()
@@ -73,6 +120,37 @@ parser.add_argument(
     choices=[64, 128, 256, 512, 1024, 2048, 4096],
     help="Compression block size in bytes (64B to 4KB)",
 )
+parser.add_argument(
+    "--dram-type",
+    type=str,
+    default="DDR4_2400_16x4",
+    choices=sorted(_DRAM_INTERFACES.keys()),
+    help="DRAM interface model used by the shared memory controllers",
+)
+parser.add_argument(
+    "--mem-channels",
+    type=int,
+    default=4,
+    help="Number of memory controllers behind the shared DRAM bus",
+)
+parser.add_argument(
+    "--num-engines",
+    type=int,
+    default=8,
+    help="Number of parallel decompression engines",
+)
+parser.add_argument(
+    "--chunk-send-delay-ticks",
+    type=int,
+    default=10,
+    help="Cycles between issuing chunk-generation events",
+)
+parser.add_argument(
+    "--inter-memory-request-delay-ticks",
+    type=int,
+    default=1000,
+    help="Cycles between memory requests sent by the decompression engine",
+)
 args = parser.parse_args()
 
 # Enable requested debug flags
@@ -121,35 +199,26 @@ system.dvfs_handler.enable = False
 # Create a simple memory system with just what we need
 system.mem_mode = "timing"
 
-# Define two separate memory ranges
-system.mem_ranges = [
-    AddrRange("0GB", "32GB"),  # For decompression (0-32GB)
-    AddrRange("32GB", "64GB"),  # For translation (32-64GB)
-]
+# Use one shared DRAM address space for both data and translation lookups.
+system.mem_ranges = [AddrRange("0GB", "64GB")]
 
-# Create two separate memory buses
-system.transbus = SystemXBar(
-    width=64, max_routing_table_size=4096
-)  # For translation
+shared_mem_channels = args.mem_channels
+shared_intlv_granularity = 64  # 64B striping across the DRAM channels
+shared_channel_ranges, shared_channel_mapping = build_channel_ranges(
+    system.mem_ranges[0], shared_mem_channels, shared_intlv_granularity
+)
+engine_port_intlv_low_bit = int(math.log2(shared_intlv_granularity))
+engine_port_intlv_bits = 2
 
-# Configure 4 memory controllers for decompression (0-32GB range)
-decomp_mem_channels = 4
-decomp_intlv_granularity = 64  # 64B interleaving granularity (explicit)
-
-for i in range(decomp_mem_channels):
-    setattr(
-        system,
-        f"decomp_xbar_{i}",
-        SystemXBar(width=128, max_routing_table_size=4096),
-    )
+system.shared_membus = SystemXBar(width=128, max_routing_table_size=4096)
 
 # Create a simple cache
 system.l1cache = Cache(
     size=args.l1_size,
     assoc=args.l1_assoc,
-    tag_latency=50,
-    data_latency=50,
-    response_latency=50,
+    tag_latency=30,  # 30ns @ 1GHz
+    data_latency=30,  # 30ns @ 1GHz
+    response_latency=30,  # 30ns effective hit path
     mshrs=16,
     tgts_per_mshr=20,
     write_buffers=16,
@@ -171,97 +240,42 @@ system.cxl_controller = CXLController(
 # Connect the CXL controller to cache
 system.cxl_controller.cache_port = system.l1cache.cpu_side
 
-# Calculate interleaving parameters for decompression
-decomp_intlv_bits = int(math.log2(decomp_mem_channels))
-decomp_intlv_low_bit = int(math.log2(decomp_intlv_granularity))
-decomp_xor_high_bit = 0  # No XOR
-
-# Create decompression memory controllers with lower latency
-for i in range(decomp_mem_channels):
+# Create memory controllers using the default DDR4-2400 timing model.
+dram_iface_cls = _DRAM_INTERFACES[args.dram_type]
+for i in range(shared_mem_channels):
     mem_ctrl = MemCtrl()
-    mem_ctrl.dram = DDR4_2400_16x4()  # Higher bandwidth memory
-    mem_ctrl.dram.banks_per_rank = 32
-    # Configure DRAM timing for lower latency
-    mem_ctrl.dram.tCK = "0.5ns"  # 2GHz clock
-    mem_ctrl.dram.tBURST = "2.5ns"  # Reduced burst time
-    mem_ctrl.dram.tRCD = "10ns"  # Lower RCD
-    mem_ctrl.dram.tCL = "10ns"  # Lower CAS latency
-    mem_ctrl.dram.tRP = "10ns"  # Lower row precharge time
-    mem_ctrl.dram.tRAS = "24ns"  # Lower row active time
+    mem_ctrl.dram = dram_iface_cls()
+    mem_ctrl.dram.range = shared_channel_ranges[i]
+    mem_ctrl.port = system.shared_membus.mem_side_ports
+    setattr(system, f"shared_mem_ctrl_{i}", mem_ctrl)
 
-    # Verify interleaving is correctly set to 64B
-    mem_ctrl.dram.range = AddrRange(
-        system.mem_ranges[0].start,
-        size=system.mem_ranges[0].size(),
-        intlvHighBit=decomp_intlv_low_bit + decomp_intlv_bits - 1,
-        xorHighBit=decomp_xor_high_bit,
-        intlvBits=decomp_intlv_bits,
-        intlvMatch=i,
-    )
-    xbar = getattr(system, f"decomp_xbar_{i}")
-    mem_ctrl.port = xbar.mem_side_ports
-    setattr(system, f"decomp_mem_ctrl_{i}", mem_ctrl)
+# Connect the translation port to the shared DRAM bus.
+system.cxl_controller.translation_port = system.shared_membus.cpu_side_ports
 
-# Configure 4 memory controllers for translation (32-64GB range)
-trans_mem_channels = 4
-# Translation lookups are block-aligned, so stripe at block granularity.
-trans_intlv_granularity = args.compression_block_size
-
-# Calculate interleaving parameters for translation
-trans_intlv_bits = int(math.log2(trans_mem_channels))
-trans_intlv_low_bit = int(math.log2(trans_intlv_granularity))
-trans_xor_high_bit = 0  # No XOR
-
-# Create translation memory controllers with lower latency
-for i in range(trans_mem_channels):
-    mem_ctrl = MemCtrl()
-    mem_ctrl.dram = DDR4_2400_16x4()  # Higher bandwidth memory
-    # Configure DRAM timing for lower latency
-    mem_ctrl.dram.tCK = "0.5ns"  # 2GHz clock
-    mem_ctrl.dram.tBURST = "2.5ns"  # Reduced burst time
-    mem_ctrl.dram.tRCD = "10ns"  # Lower RCD
-    mem_ctrl.dram.tCL = "10ns"  # Lower CAS latency
-    mem_ctrl.dram.tRP = "10ns"  # Lower row precharge time
-    mem_ctrl.dram.tRAS = "24ns"  # Lower row active time
-
-    # Verify interleaving is correctly set to 64B
-    mem_ctrl.dram.range = AddrRange(
-        system.mem_ranges[1].start,
-        size=system.mem_ranges[1].size(),
-        intlvHighBit=trans_intlv_low_bit + trans_intlv_bits - 1,
-        xorHighBit=trans_xor_high_bit,
-        intlvBits=trans_intlv_bits,
-        intlvMatch=i,
-    )
-    mem_ctrl.port = system.transbus.mem_side_ports
-    setattr(system, f"trans_mem_ctrl_{i}", mem_ctrl)
-
-# Connect the translation port to translation bus
-system.cxl_controller.translation_port = system.transbus.cpu_side_ports
-
-# Configure decompression engine with reduced delay
+# Configure decompression engine with light chunk pacing.
 system.decompression_engine = DecompressionEngine(
     block_size=args.compression_block_size,
     cache_line_size=args.cacheline_size,
-    num_engines=4,
-    chunk_send_delay_ticks=0,  # Reduced from 1000
-    inter_memory_request_delay_ticks=0,  # Reduced from 5000
-    interleaving_low_bit=decomp_intlv_low_bit,  # Match memory controller interleaving
-    interleaving_bits=decomp_intlv_bits,  # Match memory controller interleaving
+    num_engines=args.num_engines,
+    chunk_send_delay_ticks=args.chunk_send_delay_ticks,
+    inter_memory_request_delay_ticks=args.inter_memory_request_delay_ticks,
+    interleaving_low_bit=engine_port_intlv_low_bit,
+    interleaving_bits=engine_port_intlv_bits,
 )
 
 # Connect decompression engine between CXL controller and decompression bus
 system.cxl_controller.mem_port = system.decompression_engine.cxl_side_port
 
-for i in range(decomp_mem_channels):
+for i in range(4):
     port_name = f"mem_side_port_{i}"
-    xbar = getattr(system, f"decomp_xbar_{i}")
+    setattr(
+        system.decompression_engine,
+        port_name,
+        system.shared_membus.cpu_side_ports,
+    )
 
-    # DecompressionEngine의 해당 포트를 xbar에 연결
-    setattr(system.decompression_engine, port_name, xbar.cpu_side_ports)
-
-# Connect system port to translation bus (for system access)
-system.system_port = system.transbus.cpu_side_ports
+# Connect system port to the shared DRAM bus.
+system.system_port = system.shared_membus.cpu_side_ports
 
 # Set the system as the child of root
 root.system = system
@@ -282,6 +296,15 @@ print(f"Compression block size: {args.compression_block_size}B")
 print(
     f"Decompression Engines: {system.decompression_engine.num_engines}"
 )  # ADDED
+print(f"Shared DRAM: {args.dram_type}")
+print(f"Memory channels: {args.mem_channels} ({shared_channel_mapping})")
+print(f"Chunk send delay ticks: {args.chunk_send_delay_ticks}")
+print(
+    f"Inter-memory request delay ticks: {args.inter_memory_request_delay_ticks}"
+)
+print(
+    f"Inter-memory request delay ticks: {args.inter_memory_request_delay_ticks}"
+)
 
 # Run the simulation
 exit_event = m5.simulate()
