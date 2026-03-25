@@ -33,6 +33,16 @@ decompressionStepTick(const DecompressionRequest* req, unsigned block_size)
     return std::max(step, Tick(1000));
 }
 
+unsigned
+advanceContiguousCompletedChunks(DecompressionRequest* req)
+{
+    while (req->contiguousCompletedChunks < req->totalChunks &&
+           req->chunkResponseReceived[req->contiguousCompletedChunks]) {
+        req->contiguousCompletedChunks++;
+    }
+    return req->contiguousCompletedChunks;
+}
+
 } // anonymous namespace
 
 // ChunkSendEvent process method
@@ -44,62 +54,55 @@ DecompressionEngine::ChunkSendEvent::process() {
 // ScheduleMemSendEvent process method
 void
 DecompressionEngine::ScheduleMemSendEvent::process() {
-    engine->memSendEventScheduled = false; // Event is now processing
+    engine->memSendEventScheduled[portIndex] = false;
 
-    if (engine->memSendCandidateQueue.empty()) {
-        DPRINTF(DecompEngine, "MemSendEvent: Queue is empty, nothing to send.\n");
+    if (engine->memoryPortStalled[portIndex]) {
+        DPRINTF(DecompEngine,
+                "MemSendEvent: Port %u is stalled, waiting for retry.\n",
+                portIndex);
         return;
     }
 
-    DecompressionRequest* req_to_send = engine->memSendCandidateQueue.front();
-    // Packet must exist
+    auto &queue = engine->memSendCandidateQueues[portIndex];
+    if (queue.empty()) {
+        DPRINTF(DecompEngine, "MemSendEvent: Port %u queue is empty.\n",
+                portIndex);
+        return;
+    }
+
+    DecompressionRequest* req_to_send = queue.front();
     assert(req_to_send && req_to_send->pkt);
 
-    DPRINTF(DecompEngine, "MemSendEvent: Attempting to send req %p (pkt addr %#x, type: %s) to memory.\n",
-           req_to_send, req_to_send->pkt->getAddr(), req_to_send->isChunk ? "Chunk" : "Parent");
-
-    // Select port based on address interleaving
-    unsigned portIndex = engine->selectMemoryPort(req_to_send->pkt->getAddr());
-
-    // Check if the selected port is stalled
-    if (engine->memoryPortStalled[portIndex]) {
-        // Add to the port's retry queue instead of trying other ports
-        engine->memPortRetryQueues[portIndex].push(req_to_send);
-        engine->memSendCandidateQueue.pop();
-
-        DPRINTF(DecompEngine, "MemSendEvent: Memory port %u is stalled for addr %#x, added to port's retry queue.\n",
-                portIndex, req_to_send->pkt->getAddr());
-
-        // Try to schedule the next send for other addresses
-        engine->tryScheduleNextMemSend();
-        return;
-    }
+    DPRINTF(DecompEngine,
+            "MemSendEvent: Attempting to send req %p (pkt addr %#x, type: %s) on memory port %u.\n",
+            req_to_send, req_to_send->pkt->getAddr(),
+            req_to_send->isChunk ? "Chunk" : "Parent", portIndex);
 
     bool success = engine->sendToMemoryPort(req_to_send, portIndex);
 
     if (success) {
-        engine->memSendCandidateQueue.pop();
+        queue.pop();
         if (req_to_send->isChunk) {
             engine->pendingRequests[req_to_send->pkt->getAddr()] = req_to_send;
         } else {
             warn("MemSendEvent: Non-chunk request %p sent to memory and added to pendingRequests. Review if this is intended.", req_to_send);
             engine->pendingRequests[req_to_send->pkt->getAddr()] = req_to_send;
         }
-        engine->nextMemSendAvailableAt = engine->clockEdge() + engine->interMemoryRequestDelay;
-        DPRINTF(DecompEngine, "MemSendEvent: Successfully sent req %p to memory port %d (interleaved). Next send available at %llu.\n",
-                req_to_send, portIndex, engine->nextMemSendAvailableAt);
+        engine->nextMemSendAvailableAt[portIndex] =
+            engine->clockEdge() + engine->interMemoryRequestDelay;
+        DPRINTF(DecompEngine,
+                "MemSendEvent: Successfully sent req %p to memory port %u. "
+                "Next send on this port available at %llu.\n",
+                req_to_send, portIndex,
+                engine->nextMemSendAvailableAt[portIndex]);
     } else {
-        // This port is now stalled, add request to port's retry queue
         engine->memoryPortStalled[portIndex] = true;
-        engine->memPortRetryQueues[portIndex].push(req_to_send);
-        engine->memSendCandidateQueue.pop();
-
-        DPRINTF(DecompEngine, "MemSendEvent: Memory port %d busy for req %p, added to port's retry queue.\n",
+        DPRINTF(DecompEngine,
+                "MemSendEvent: Memory port %u busy for req %p, keeping it queued.\n",
                 portIndex, req_to_send);
     }
 
-    // Try to schedule the next send if conditions allow
-    engine->tryScheduleNextMemSend();
+    engine->tryScheduleNextMemSend(portIndex);
 }
 
 // Modify the method to select memory port based on address interleaving only
@@ -131,44 +134,7 @@ DecompressionEngine::selectMemoryPort(Addr addr) {
 // Add method to process retry queue for a specific port
 void
 DecompressionEngine::tryMemPortRetry(unsigned portIndex) {
-    if (memPortRetryQueues[portIndex].empty()) {
-        DPRINTF(DecompEngine, "No requests in retry queue for port %u\n", portIndex);
-        return;
-    }
-
-    // Try to send the first request in the queue
-    DecompressionRequest* req = memPortRetryQueues[portIndex].front();
-
-    DPRINTF(DecompEngine, "Trying to send request %p to port %u from retry queue\n",
-            req, portIndex);
-
-    bool success = sendToMemoryPort(req, portIndex);
-
-    if (success) {
-        // Remove from retry queue
-        memPortRetryQueues[portIndex].pop();
-
-        // Add to pending requests
-        if (req->isChunk) {
-            pendingRequests[req->pkt->getAddr()] = req;
-        } else {
-            warn("MemPortRetry: Non-chunk request %p sent to memory and added to pendingRequests.", req);
-            pendingRequests[req->pkt->getAddr()] = req;
-        }
-
-        DPRINTF(DecompEngine, "Successfully sent req %p to memory port %u from retry queue\n",
-                req, portIndex);
-
-        // Try more from the same queue if available
-        if (!memPortRetryQueues[portIndex].empty()) {
-            tryMemPortRetry(portIndex);
-        }
-    } else {
-        // Port is still stalled
-        memoryPortStalled[portIndex] = true;
-        DPRINTF(DecompEngine, "Port %u still stalled for retry request %p\n",
-                portIndex, req);
-    }
+    tryScheduleNextMemSend(portIndex);
 }
 
 // Update constructor to initialize ports as members
@@ -181,7 +147,6 @@ DecompressionEngine::DecompressionEngine(const DecompressionEngineParams &params
       memPort3(name() + ".mem_side_port_3", this, 3),
       memoryPortStalled{false, false, false, false}, // 4개 포트에 대한 stalled 플래그 초기화
       nextMemoryPortIndex(0),
-      memoryStalled(false),
       responseStalled(false),
       respondingRequest(nullptr),
       block_size(params.block_size),
@@ -190,10 +155,10 @@ DecompressionEngine::DecompressionEngine(const DecompressionEngineParams &params
       active_decompressions(0),
       chunkSendDelay(params.chunk_send_delay_ticks),
       cxlReqStalled(false),
-      nextMemSendAvailableAt(0),
+      nextMemSendAvailableAt{0, 0, 0, 0},
       interMemoryRequestDelay(params.inter_memory_request_delay_ticks),
-      memSendEvent(this),
-      memSendEventScheduled(false),
+      memSendEvents{{this, 0}, {this, 1}, {this, 2}, {this, 3}},
+      memSendEventScheduled{false, false, false, false},
       interleavingLowBit(params.interleaving_low_bit),
       interleavingBits(params.interleaving_bits)
 {
@@ -231,15 +196,15 @@ DecompressionEngine::~DecompressionEngine()
     }
     pendingRequests.clear();
 
-    // Clear memSendCandidateQueue (these are chunk requests waiting to be sent)
-    while (!memSendCandidateQueue.empty()) {
-        DecompressionRequest* req = memSendCandidateQueue.front();
-        memSendCandidateQueue.pop();
-        if (req) {
-            assert(req->isChunk); // Should only contain chunks now
-            delete req->pkt;
-            // respPkt should be null here
-            delete req;
+    for (auto &queue : memSendCandidateQueues) {
+        while (!queue.empty()) {
+            DecompressionRequest* req = queue.front();
+            queue.pop();
+            if (req) {
+                assert(req->isChunk);
+                delete req->pkt;
+                delete req;
+            }
         }
     }
 
@@ -292,19 +257,6 @@ DecompressionEngine::~DecompressionEngine()
         respondingRequest = nullptr;
     }
 
-    // Clean up per-port retry queues
-    for (auto& queue : memPortRetryQueues) {
-        while (!queue.empty()) {
-            DecompressionRequest* req = queue.front();
-            queue.pop();
-            if (req) {
-                if (req->pkt) {
-                    delete req->pkt;
-                }
-                delete req;
-            }
-        }
-    }
 }
 
 Port &
@@ -364,6 +316,7 @@ DecompressionEngine::CXLSidePort::recvTimingReq(PacketPtr pkt)
     // Ensure at least one chunk if size > 0 and totalChunks ended up 0
     if (pkt->getSize() > 0 && parentReq->totalChunks == 0) parentReq->totalChunks = 1;
 
+    parentReq->chunkResponseReceived.assign(parentReq->totalChunks, false);
 
     parentReq->responseData = new char[pkt->getSize()]; // Buffer for aggregated data
     std::memset(parentReq->responseData, 0, pkt->getSize());
@@ -458,11 +411,12 @@ DecompressionEngine::sendNextChunk(DecompressionRequest* parentReq, unsigned chu
     DPRINTF(DecompEngine, "ParentReq %p: Sending chunk %u/%u for addr %#x (chunk addr %#x, size %u).\n",
             parentReq, chunkIndex + 1, parentReq->totalChunks, baseAddr, chunkAddr, chunkSize);
 
-    // Add chunk to memSendCandidateQueue and try to schedule
-    memSendCandidateQueue.push(chunkReqObj);
-    DPRINTF(DecompEngine, "Added chunk %u (req %p, addr %#x) to memSendCandidateQueue.\n",
-            chunkIndex, chunkReqObj, chunkAddr);
-    tryScheduleNextMemSend();
+    unsigned portIndex = selectMemoryPort(chunkAddr);
+    memSendCandidateQueues[portIndex].push(chunkReqObj);
+    DPRINTF(DecompEngine,
+            "Added chunk %u (req %p, addr %#x) to memory send queue for port %u.\n",
+            chunkIndex, chunkReqObj, chunkAddr, portIndex);
+    tryScheduleNextMemSend(portIndex);
 
 
     // Schedule next chunk if any
@@ -616,15 +570,16 @@ DecompressionEngine::CXLSidePort::recvFunctional(PacketPtr pkt)
     // We need to iterate over a copy or be careful if trySatisfyFunctional could trigger state changes.
     // For now, let's assume simple iteration is fine for functional check.
     // If memSendCandidateQueue can be modified by trySatisfyFunctional indirectly, this needs rework.
-    std::queue<DecompressionRequest*> current_candidates = owner->memSendCandidateQueue; // Make a copy for iteration
-    while(!current_candidates.empty()){
-        DecompressionRequest* req = current_candidates.front();
-        current_candidates.pop(); // Iterate through the copy
-        if(!found && req->pkt && pkt->trySatisfyFunctional(req->pkt)) found = true;
-        if(!found && req->respPkt && pkt->trySatisfyFunctional(req->respPkt)) found = true;
-        // Do not push back to temp_q here as we are iterating a copy
+    for (unsigned i = 0; i < owner->NUM_MEMORY_PORTS && !found; ++i) {
+        std::queue<DecompressionRequest*> current_candidates =
+            owner->memSendCandidateQueues[i];
+        while(!current_candidates.empty()){
+            DecompressionRequest* req = current_candidates.front();
+            current_candidates.pop();
+            if(!found && req->pkt && pkt->trySatisfyFunctional(req->pkt)) found = true;
+            if(!found && req->respPkt && pkt->trySatisfyFunctional(req->respPkt)) found = true;
+        }
     }
-    // owner->memSendCandidateQueue remains unchanged by this block.
     if(found) return;
 
 
@@ -689,14 +644,8 @@ DecompressionEngine::MemSidePort::recvReqRetry()
 {
     DPRINTF(DecompEngine, "Received request retry from memory on port %u\n", portIndex);
 
-    // Clear stall flag for this specific port
     owner->memoryPortStalled[portIndex] = false;
-
-    // Try processing retry queue for this specific port
     owner->tryMemPortRetry(portIndex);
-
-    // Try to schedule next send from the candidate queue
-    owner->tryScheduleNextMemSend();
 }
 
 void
@@ -757,9 +706,11 @@ DecompressionEngine::handleResponse(PacketPtr memRespPkt)
         }
     }
 
+    unsigned respondedChunkIndex = chunkReq->chunkIndex;
+
     // Safe cleanup of chunk resources
     DPRINTF(DecompEngine, "ParentReq %p: Cleaning up chunk %u resources (memRespPkt %p, chunkReq->pkt %p, chunkReq %p).\n",
-            parentReq, chunkReq->chunkIndex, memRespPkt, chunkReq->pkt, chunkReq);
+            parentReq, respondedChunkIndex, memRespPkt, chunkReq->pkt, chunkReq);
 
 
     // The DecompressionRequest object for the chunk (chunkReq) owns its pkt (request to memory).
@@ -809,12 +760,23 @@ DecompressionEngine::handleResponse(PacketPtr memRespPkt)
     delete chunkReq; // Delete the DecompressionRequest object for the chunk
 
     parentReq->completedChunks++;
-    DPRINTF(DecompEngine, "ParentReq %p: Completed chunk %u/%u.\n",
-            parentReq, parentReq->completedChunks, parentReq->totalChunks);
+    assert(respondedChunkIndex < parentReq->chunkResponseReceived.size());
+    parentReq->chunkResponseReceived[respondedChunkIndex] = true;
+
+    unsigned prevContiguousCompletedChunks = parentReq->contiguousCompletedChunks;
+    unsigned newContiguousCompletedChunks =
+        advanceContiguousCompletedChunks(parentReq);
+
+    DPRINTF(DecompEngine,
+            "ParentReq %p: Completed response for chunk %u. Responses %u/%u, contiguous ready chunks %u/%u.\n",
+            parentReq, respondedChunkIndex, parentReq->completedChunks,
+            parentReq->totalChunks, newContiguousCompletedChunks,
+            parentReq->totalChunks);
 
     // Schedule SendReadinessUpdateEvent only if not all chunks are completed.
     // If all chunks are completed, the subsequent completeDecompression will serve as the final update.
-    if (parentReq->completedChunks < parentReq->totalChunks) {
+    if (newContiguousCompletedChunks > prevContiguousCompletedChunks &&
+        newContiguousCompletedChunks < parentReq->totalChunks) {
         Tick decompTime = decompressionStepTick(parentReq, block_size);
         Tick scheduledTick = curTick() + decompTime;
 
@@ -838,7 +800,7 @@ DecompressionEngine::handleResponse(PacketPtr memRespPkt)
     }
 
 
-    if (parentReq->completedChunks == parentReq->totalChunks) {
+    if (newContiguousCompletedChunks == parentReq->totalChunks) {
         DPRINTF(DecompEngine, "ParentReq %p: All %u chunks completed for addr %#x. Original CXL Pkt: %p. Pkt cmd: %s, Pkt size: %u\n",
                 parentReq, parentReq->totalChunks, parentReq->pkt->getAddr(), parentReq->pkt, parentReq->pkt->cmdString(), parentReq->pkt->getSize());
 
@@ -969,26 +931,26 @@ DecompressionEngine::completeDecompression(DecompressionRequest* req) // req is 
 // Method to try scheduling next memory send
 void
 DecompressionEngine::tryScheduleNextMemSend() {
-    if (memSendCandidateQueue.empty()) {
-        // DPRINTF(DecompEngine, "tryScheduleNextMemSend: Queue empty.\n");
+    for (unsigned portIndex = 0; portIndex < NUM_MEMORY_PORTS; ++portIndex) {
+        tryScheduleNextMemSend(portIndex);
+    }
+}
+
+void
+DecompressionEngine::tryScheduleNextMemSend(unsigned portIndex) {
+    if (memoryPortStalled[portIndex]) {
         return;
     }
-    if (memSendEventScheduled) {
-        // DPRINTF(DecompEngine, "tryScheduleNextMemSend: Event already scheduled.\n");
+    if (memSendCandidateQueues[portIndex].empty()) {
         return;
     }
-    if (memoryStalled) {
-        // DPRINTF(DecompEngine, "tryScheduleNextMemSend: Memory port stalled.\n");
+    if (memSendEventScheduled[portIndex]) {
         return;
     }
 
-    Tick schedule_at = std::max(clockEdge(), nextMemSendAvailableAt);
-
-    // DPRINTF(DecompEngine, "tryScheduleNextMemSend: Scheduling MemSendEvent at %llu (curTick %llu, nextAvailable %llu).\n",
-    //         schedule_at, curTick(), nextMemSendAvailableAt);
-
-    schedule(&memSendEvent, schedule_at);
-    memSendEventScheduled = true;
+    Tick schedule_at = std::max(clockEdge(), nextMemSendAvailableAt[portIndex]);
+    schedule(&memSendEvents[portIndex], schedule_at);
+    memSendEventScheduled[portIndex] = true;
 }
 
 // Calculate how many cachelines can be marked ready based on completed chunks
@@ -999,13 +961,13 @@ DecompressionEngine::calculateReadyCachelines(DecompressionRequest* parentReq)
     if (parentReq->totalChunks == 0) { // Check totalChunks to avoid division by zero
         return 0;
     }
-    // If completedChunks is 0, percentage is 0.
-    if (parentReq->completedChunks == 0) {
+    // If no leading chunks are complete, nothing is ready yet.
+    if (parentReq->contiguousCompletedChunks == 0) {
         return 0;
     }
 
-    // Calculate percentage of chunks completed (based on compressed data chunks)
-    double completionPercentage = static_cast<double>(parentReq->completedChunks) /
+    // Calculate percentage of contiguous chunks completed (based on compressed data chunks)
+    double completionPercentage = static_cast<double>(parentReq->contiguousCompletedChunks) /
                                  parentReq->totalChunks;
 
     // Calculate total cachelines in the original (decompressed) block

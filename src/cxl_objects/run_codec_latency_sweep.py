@@ -92,7 +92,7 @@ def parse_args() -> argparse.Namespace:
         "--mem-channels",
         type=int,
         default=4,
-        help="Memory-channel count passed to cxl_trace_replay.py",
+        help="Power-of-two memory-channel count passed to cxl_trace_replay.py",
     )
     parser.add_argument(
         "--num-engines",

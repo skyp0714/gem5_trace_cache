@@ -37,6 +37,8 @@ struct DecompressionRequest {
     unsigned chunkIndex;                 // If this is a chunk, its index
     unsigned totalChunks;                // Total number of chunks for this request
     unsigned completedChunks;            // Number of chunks that have received responses
+    unsigned contiguousCompletedChunks;  // Number of leading chunks received in order
+    std::vector<bool> chunkResponseReceived; // Tracks which chunk responses have arrived
 
     // NEW: For tracking readiness updates
     bool isReadinessUpdate;         // Whether this is a readiness update packet
@@ -47,9 +49,10 @@ struct DecompressionRequest {
     double decompLatency_ns;        // Decompression latency in nanoseconds
 
     DecompressionRequest(PacketPtr _pkt, Tick _time)
-        : pkt(_pkt), respPkt(nullptr), arrivalTime(_time), readyToRespond(false),
+          : pkt(_pkt), respPkt(nullptr), arrivalTime(_time), readyToRespond(false),
           isChunk(false), parentRequest(nullptr), responseData(nullptr),
-          chunkIndex(0), totalChunks(0), completedChunks(0), // totalChunks default to 0, set explicitly for parents
+          chunkIndex(0), totalChunks(0), completedChunks(0),
+          contiguousCompletedChunks(0),
           isReadinessUpdate(false), blockAddr(0), readyCachelines(0),
           decompLatency_ns(-1.0) {}
 
@@ -95,6 +98,8 @@ struct DecompressionRequest {
           parentRequest(other.parentRequest), chunkRequests(std::move(other.chunkRequests)),
           responseData(other.responseData), chunkIndex(other.chunkIndex),
           totalChunks(other.totalChunks), completedChunks(other.completedChunks),
+          contiguousCompletedChunks(other.contiguousCompletedChunks),
+          chunkResponseReceived(std::move(other.chunkResponseReceived)),
           isReadinessUpdate(other.isReadinessUpdate), blockAddr(other.blockAddr),
           readyCachelines(other.readyCachelines), decompLatency_ns(other.decompLatency_ns) {
         other.pkt = nullptr;
@@ -132,6 +137,8 @@ struct DecompressionRequest {
             chunkIndex = other.chunkIndex;
             totalChunks = other.totalChunks;
             completedChunks = other.completedChunks;
+            contiguousCompletedChunks = other.contiguousCompletedChunks;
+            chunkResponseReceived = std::move(other.chunkResponseReceived);
             isReadinessUpdate = other.isReadinessUpdate;
             blockAddr = other.blockAddr;
             readyCachelines = other.readyCachelines;
@@ -262,9 +269,10 @@ class DecompressionEngine : public ClockedObject
     class ScheduleMemSendEvent : public Event {
       private:
         DecompressionEngine *engine;
+        unsigned portIndex;
       public:
-        ScheduleMemSendEvent(DecompressionEngine *_engine)
-            : Event(Default_Pri), engine(_engine) {}
+        ScheduleMemSendEvent(DecompressionEngine *_engine, unsigned _portIndex)
+            : Event(Default_Pri), engine(_engine), portIndex(_portIndex) {}
         void process() override; // Implementation in .cc
         const char *description() const override {
             return "DecompressionEngine schedule memory send event";
@@ -323,9 +331,6 @@ class DecompressionEngine : public ClockedObject
     /// Next port to use for round-robin assignment (not used with interleaving)
     unsigned nextMemoryPortIndex;
 
-    /// Per-port retry queues for stalled memory requests
-    std::queue<DecompressionRequest*> memPortRetryQueues[NUM_MEMORY_PORTS];
-
     /// Queue for requests that received memory response and wait for decompression engine
     std::queue<DecompressionRequest*> decompression_queue; // Holds parent requests ready for decompression
 
@@ -334,9 +339,6 @@ class DecompressionEngine : public ClockedObject
 
     /// Map of requests sent to memory, waiting for response (key: address of chunk packet)
     std::map<Addr, DecompressionRequest*> pendingRequests; // Holds chunk requests
-
-    /// Flag for when we're stalled waiting for memory port to become available
-    bool memoryStalled;
 
     /// Flag for when we're stalled waiting for CXL controller to accept response
     bool responseStalled;
@@ -365,12 +367,12 @@ class DecompressionEngine : public ClockedObject
     // For parent requests whose first chunk send failed due to memory stall
     std::queue<DecompressionRequest*> memParentRetryQueue; // This might also be removable if all go via memSendCandidateQueue
 
-    // ADDED: For memory request serialization
-    std::queue<DecompressionRequest*> memSendCandidateQueue;
-    Tick nextMemSendAvailableAt;
+    // Per-port memory issue state. Each port can inject independently.
+    std::queue<DecompressionRequest*> memSendCandidateQueues[NUM_MEMORY_PORTS];
+    Tick nextMemSendAvailableAt[NUM_MEMORY_PORTS];
     const Tick interMemoryRequestDelay; // Changed from static const
-    ScheduleMemSendEvent memSendEvent;
-    bool memSendEventScheduled; // To prevent scheduling multiple send events
+    ScheduleMemSendEvent memSendEvents[NUM_MEMORY_PORTS];
+    bool memSendEventScheduled[NUM_MEMORY_PORTS]; // To prevent scheduling multiple send events
 
     /// Interleaving parameters for memory port selection
     const unsigned interleavingLowBit;
@@ -406,6 +408,7 @@ class DecompressionEngine : public ClockedObject
 
     // New method to send the next chunk, called by ChunkSendEvent
     void sendNextChunk(DecompressionRequest* parentReq, unsigned chunkIndex);
+    void tryScheduleNextMemSend(unsigned portIndex);
     void tryScheduleNextMemSend();
 };
 

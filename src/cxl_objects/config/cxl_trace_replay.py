@@ -33,37 +33,30 @@ def is_power_of_two(value):
 
 def build_channel_ranges(mem_range, num_channels, intlv_granularity):
     total_size = mem_range.size()
+    if not is_power_of_two(num_channels):
+        raise ValueError(
+            "mem_channels must be a power of two so DRAM channels use true "
+            "gem5 interleaving"
+        )
+
     if num_channels == 1:
-        return [AddrRange(mem_range.start, size=total_size)], "contiguous"
+        return [AddrRange(mem_range.start, size=total_size)], "single"
 
-    if is_power_of_two(num_channels):
-        intlv_bits = int(math.log2(num_channels))
-        intlv_low_bit = int(math.log2(intlv_granularity))
-        ranges = []
-        for match in range(num_channels):
-            ranges.append(
-                AddrRange(
-                    mem_range.start,
-                    size=total_size,
-                    intlvHighBit=intlv_low_bit + intlv_bits - 1,
-                    xorHighBit=0,
-                    intlvBits=intlv_bits,
-                    intlvMatch=match,
-                )
-            )
-        return ranges, "striped"
-
-    # gem5 AddrRange striping requires 2^N stripes. For non-power-of-two
-    # channel counts, fall back to equal contiguous partitions.
-    base_size = total_size // num_channels
-    remainder = total_size % num_channels
-    start = mem_range.start
+    intlv_bits = int(math.log2(num_channels))
+    intlv_low_bit = int(math.log2(intlv_granularity))
     ranges = []
-    for idx in range(num_channels):
-        size = base_size + (1 if idx < remainder else 0)
-        ranges.append(AddrRange(start, size=size))
-        start += size
-    return ranges, "contiguous"
+    for match in range(num_channels):
+        ranges.append(
+            AddrRange(
+                mem_range.start,
+                size=total_size,
+                intlvHighBit=intlv_low_bit + intlv_bits - 1,
+                xorHighBit=0,
+                intlvBits=intlv_bits,
+                intlvMatch=match,
+            )
+        )
+    return ranges, "striped"
 
 
 # Parse command line arguments
@@ -131,7 +124,7 @@ parser.add_argument(
     "--mem-channels",
     type=int,
     default=4,
-    help="Number of memory controllers behind the shared DRAM bus",
+    help="Number of memory controllers behind the shared DRAM bus (power of two)",
 )
 parser.add_argument(
     "--num-engines",
@@ -152,6 +145,11 @@ parser.add_argument(
     help="Cycles between memory requests sent by the decompression engine",
 )
 args = parser.parse_args()
+
+if not is_power_of_two(args.mem_channels):
+    parser.error(
+        "--mem-channels must be a power of two (for example: 1, 2, 4, 8, 16)"
+    )
 
 # Enable requested debug flags
 if args.debug_flags:

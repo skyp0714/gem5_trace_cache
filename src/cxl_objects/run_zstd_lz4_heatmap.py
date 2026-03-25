@@ -28,7 +28,11 @@ def is_power_of_two(value):
 
 
 def channel_mapping_mode(channels):
-    return "striped" if is_power_of_two(channels) else "contiguous"
+    if not is_power_of_two(channels):
+        raise ValueError(
+            f"Unsupported channel count {channels}: only powers of two are allowed"
+        )
+    return "single" if channels == 1 else "striped"
 
 
 def parse_args():
@@ -76,7 +80,7 @@ def parse_args():
         "--mem-channels",
         nargs="+",
         type=int,
-        default=[2, 4, 6, 8, 10, 12],
+        default=[2, 4, 8, 16],
         help="Memory-channel counts to sweep",
     )
     parser.add_argument(
@@ -127,7 +131,16 @@ def parse_args():
         default=None,
         help="Optional subset of traces, e.g. tr1 tr3",
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+    invalid_channels = [
+        ch for ch in args.mem_channels if not is_power_of_two(ch)
+    ]
+    if invalid_channels:
+        parser.error(
+            "--mem-channels must all be powers of two; invalid values: "
+            + ", ".join(str(ch) for ch in invalid_channels)
+        )
+    return args
 
 
 def cell_command(
@@ -243,19 +256,31 @@ def write_csv(path, rows):
         writer.writerows(rows)
 
 
-def render_heatmap(path, dram_types, mem_channels, rows, title):
+def render_heatmap(
+    path,
+    dram_types,
+    mem_channels,
+    rows,
+    title,
+    value_key,
+    value_label,
+    vmin,
+    vmax,
+    cmap,
+    formatter,
+):
     matrix = np.full((len(dram_types), len(mem_channels)), np.nan)
     for row in rows:
         y = dram_types.index(row["dram_type"])
         x = mem_channels.index(row["mem_channels"])
-        matrix[y, x] = row["trace_fraction_zstd_better"]
+        matrix[y, x] = row[value_key]
 
     fig, ax = plt.subplots(
         figsize=(1.4 * len(mem_channels) + 2, 1.2 * len(dram_types) + 2)
     )
-    im = ax.imshow(matrix, vmin=0.0, vmax=1.0, cmap="viridis", aspect="auto")
+    im = ax.imshow(matrix, vmin=vmin, vmax=vmax, cmap=cmap, aspect="auto")
     cbar = fig.colorbar(im, ax=ax)
-    cbar.set_label("Fraction of Traces Where ZSTD < LZ4")
+    cbar.set_label(value_label)
 
     ax.set_xticks(range(len(mem_channels)))
     ax.set_xticklabels(mem_channels)
@@ -272,8 +297,13 @@ def render_heatmap(path, dram_types, mem_channels, rows, title):
                 label = "NA"
                 color = "white"
             else:
-                label = f"{value:.2f}"
-                color = "white" if value < 0.45 or value > 0.75 else "black"
+                label = formatter(value)
+                midpoint = (vmin + vmax) / 2.0
+                color = (
+                    "white"
+                    if abs(value - midpoint) > (vmax - vmin) * 0.25
+                    else "black"
+                )
             ax.text(
                 x, y, label, ha="center", va="center", color=color, fontsize=10
             )
@@ -319,8 +349,8 @@ def main():
         "inter_memory_request_delay_ticks": args.inter_memory_request_delay_ticks,
         "timeout_seconds": args.timeout_seconds,
         "note": (
-            "Non-power-of-two channel counts use contiguous partitions; "
-            "power-of-two counts use 64B striped interleaving."
+            "Only power-of-two channel counts are supported. All channel "
+            "counts in this sweep use 64B striped interleaving."
         ),
     }
     (base_results_dir / "metadata.json").write_text(
@@ -367,17 +397,52 @@ def main():
     csv_path = base_results_dir / "heatmap_cells.csv"
     write_csv(csv_path, rows)
 
-    title = (
+    fraction_title = (
         "ZSTD Better-Than-LZ4 Fraction\n"
         f"engines={args.num_engines}, chunk_delay={args.chunk_send_delay_ticks}, "
         f"inter_req_delay={args.inter_memory_request_delay_ticks}"
     )
-    png_path = base_results_dir / "zstd_lz4_heatmap.png"
-    render_heatmap(png_path, args.dram_types, args.mem_channels, rows, title)
+    fraction_png_path = base_results_dir / "zstd_lz4_heatmap.png"
+    render_heatmap(
+        fraction_png_path,
+        args.dram_types,
+        args.mem_channels,
+        rows,
+        fraction_title,
+        "trace_fraction_zstd_better",
+        "Fraction of Traces Where ZSTD < LZ4",
+        0.0,
+        1.0,
+        "viridis",
+        lambda value: f"{value:.2f}",
+    )
+
+    reduction_title = (
+        "Weighted ZSTD Latency Reduction vs LZ4\n"
+        f"engines={args.num_engines}, chunk_delay={args.chunk_send_delay_ticks}, "
+        f"inter_req_delay={args.inter_memory_request_delay_ticks}"
+    )
+    reduction_png_path = (
+        base_results_dir / "zstd_lz4_weighted_reduction_heatmap.png"
+    )
+    render_heatmap(
+        reduction_png_path,
+        args.dram_types,
+        args.mem_channels,
+        rows,
+        reduction_title,
+        "weighted_reduction_pct",
+        "Weighted Latency Reduction (%)",
+        -20.0,
+        20.0,
+        "coolwarm",
+        lambda value: f"{value:.1f}%",
+    )
 
     print()
     print(f"Cell CSV: {csv_path}")
-    print(f"Heatmap: {png_path}")
+    print(f"Fraction heatmap: {fraction_png_path}")
+    print(f"Reduction heatmap: {reduction_png_path}")
     return 0
 
 
