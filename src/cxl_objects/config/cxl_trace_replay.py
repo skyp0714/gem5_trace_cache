@@ -142,7 +142,7 @@ parser.add_argument(
 parser.add_argument(
     "--chunk-send-delay-ticks",
     type=int,
-    default=10,
+    default=3,
     help="Cycles between issuing chunk-generation events",
 )
 parser.add_argument(
