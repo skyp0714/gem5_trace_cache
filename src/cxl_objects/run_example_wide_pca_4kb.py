@@ -9,7 +9,10 @@ import signal
 import subprocess
 import sys
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import (
+    ThreadPoolExecutor,
+    as_completed,
+)
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -18,7 +21,6 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
-
 
 TRACE_RE = re.compile(
     r"^ws(?P<ws>\d+)_ac(?P<ac>\d+)_tl(?P<tl>\d+)_sl(?P<sl>\d+)_ts(?P<ts>\d+)_(?P<codec>lz4|zstd)_4096\.txt$"
@@ -72,6 +74,10 @@ class TraceResult:
     stdout_file: str
     stderr_file: str
     elapsed_sec: float
+
+
+class SkipTraceResult(Exception):
+    pass
 
 
 def parse_args() -> argparse.Namespace:
@@ -151,6 +157,15 @@ def parse_args() -> argparse.Namespace:
         help="Chunk generation delay passed to the simulator",
     )
     parser.add_argument(
+        "--max-sim-ticks",
+        type=int,
+        default=32000000000000,
+        help=(
+            "Maximum gem5 simulation ticks per trace run "
+            "(default: ~32s at 1THz tick frequency)"
+        ),
+    )
+    parser.add_argument(
         "--inter-memory-request-delay-ticks",
         type=int,
         default=1000,
@@ -172,6 +187,14 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Only parse existing outputs; do not launch gem5",
     )
+    parser.add_argument(
+        "--skip-trace-count",
+        action="store_true",
+        help=(
+            "Skip pre-counting trace rows before simulation. "
+            "When enabled, request_count falls back to completed output rows."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -185,11 +208,9 @@ def count_requests(trace_path: Path) -> int:
     return count
 
 
-def discover_jobs(trace_root: Path) -> list[TraceJob]:
+def discover_jobs(trace_root: Path, skip_trace_count: bool) -> list[TraceJob]:
     jobs: list[TraceJob] = []
     for trace_path in sorted(trace_root.iterdir()):
-        if not trace_path.is_file():
-            continue
         match = TRACE_RE.match(trace_path.name)
         if not match:
             continue
@@ -205,7 +226,9 @@ def discover_jobs(trace_root: Path) -> list[TraceJob]:
                 sl=int(groups["sl"]),
                 ts=int(groups["ts"]),
                 codec=groups["codec"],
-                request_count=count_requests(trace_path),
+                request_count=(
+                    -1 if skip_trace_count else count_requests(trace_path)
+                ),
             )
         )
     if not jobs:
@@ -285,7 +308,9 @@ def parse_total_memory_read_bytes(stats_file: Path) -> int:
     for match in BYTES_READ_RE.finditer(text):
         last_values[match.group(1)] = int(match.group(2))
     if not last_values:
-        raise ValueError(f"Could not find bytesRead::total in {stats_file}")
+        raise SkipTraceResult(
+            f"missing bytesRead::total in stats ({stats_file})"
+        )
     return sum(last_values.values())
 
 
@@ -301,16 +326,19 @@ def run_one(
     l1_size: str,
     l1_assoc: int,
     chunk_send_delay_ticks: int,
+    max_sim_ticks: int,
     inter_memory_request_delay_ticks: int,
     timeout_seconds: int | None,
     force: bool,
     collect_only: bool,
 ) -> TraceResult:
     results_root.mkdir(parents=True, exist_ok=True)
+    latency_dir = results_root / "latency_logs"
+    latency_dir.mkdir(parents=True, exist_ok=True)
     run_dir = results_root / "runs" / job.stem
     run_dir.mkdir(parents=True, exist_ok=True)
 
-    latency_log = results_root / f"{job.stem}_latency.txt"
+    latency_log = latency_dir / f"{job.stem}_latency.txt"
     stdout_file = run_dir / "stdout.txt"
     stderr_file = run_dir / "stderr.txt"
     stats_file = run_dir / "stats.txt"
@@ -327,6 +355,7 @@ def run_one(
         f"--l1-size={l1_size}",
         f"--l1-assoc={l1_assoc}",
         f"--chunk-send-delay-ticks={chunk_send_delay_ticks}",
+        f"--max-sim-ticks={max_sim_ticks}",
         (
             "--inter-memory-request-delay-ticks="
             f"{inter_memory_request_delay_ticks}"
@@ -378,8 +407,11 @@ def run_one(
         summary_complete,
     ) = parse_latency_metrics(latency_log)
     total_memory_read_bytes = parse_total_memory_read_bytes(stats_file)
+    effective_request_count = (
+        job.request_count if job.request_count > 0 else completed_rows
+    )
     bandwidth_inflation = total_memory_read_bytes / (
-        job.request_count * 64.0
+        effective_request_count * 64.0
     )
 
     return TraceResult(
@@ -392,7 +424,7 @@ def run_one(
         sl=job.sl,
         ts=job.ts,
         codec=job.codec,
-        request_count=job.request_count,
+        request_count=effective_request_count,
         avg_latency_ns=avg_latency_ns,
         avg_hit_latency_ns=avg_hit_latency_ns,
         avg_miss_latency_ns=avg_miss_latency_ns,
@@ -443,7 +475,15 @@ def write_trace_csv(results_root: Path, results: list[TraceResult]) -> Path:
         writer.writeheader()
         for result in sorted(
             results,
-            key=lambda r: (r.tl, r.sl, r.ws, r.ac, r.ts, r.codec, r.trace_name),
+            key=lambda r: (
+                r.tl,
+                r.sl,
+                r.ws,
+                r.ac,
+                r.ts,
+                r.codec,
+                r.trace_name,
+            ),
         ):
             writer.writerow(result.__dict__)
     return out_path
@@ -487,7 +527,9 @@ def write_cell_csvs(
                         )
 
             pct = (
-                (100.0 * zstd_better_count / pair_count) if pair_count else math.nan
+                (100.0 * zstd_better_count / pair_count)
+                if pair_count
+                else math.nan
             )
             avg_lz4_bw = (
                 sum(lz4_bw_values) / len(lz4_bw_values)
@@ -571,6 +613,159 @@ def write_cell_csvs(
     return zstd_csv, bw_csv, speedup_csv
 
 
+def write_codec_latency_cell_csvs(
+    results_root: Path, results: list[TraceResult]
+) -> tuple[Path, Path, Path, Path]:
+    tls = sorted({result.tl for result in results})
+    sls = sorted({result.sl for result in results})
+
+    zstd_latency_rows = []
+    lz4_latency_rows = []
+    zstd_miss_rows = []
+    lz4_miss_rows = []
+
+    for sl in sls:
+        for tl in tls:
+            zstd_cell = [
+                r
+                for r in results
+                if r.tl == tl and r.sl == sl and r.codec == "zstd"
+            ]
+            lz4_cell = [
+                r
+                for r in results
+                if r.tl == tl and r.sl == sl and r.codec == "lz4"
+            ]
+
+            zstd_lat_values = [
+                r.avg_latency_ns
+                for r in zstd_cell
+                if math.isfinite(r.avg_latency_ns)
+            ]
+            lz4_lat_values = [
+                r.avg_latency_ns
+                for r in lz4_cell
+                if math.isfinite(r.avg_latency_ns)
+            ]
+            zstd_miss_values = [
+                r.avg_miss_latency_ns
+                for r in zstd_cell
+                if math.isfinite(r.avg_miss_latency_ns)
+            ]
+            lz4_miss_values = [
+                r.avg_miss_latency_ns
+                for r in lz4_cell
+                if math.isfinite(r.avg_miss_latency_ns)
+            ]
+
+            zstd_latency_rows.append(
+                {
+                    "tl": tl,
+                    "sl": sl,
+                    "zstd_trace_count": len(zstd_lat_values),
+                    "avg_zstd_latency_ns": (
+                        sum(zstd_lat_values) / len(zstd_lat_values)
+                        if zstd_lat_values
+                        else math.nan
+                    ),
+                }
+            )
+            lz4_latency_rows.append(
+                {
+                    "tl": tl,
+                    "sl": sl,
+                    "lz4_trace_count": len(lz4_lat_values),
+                    "avg_lz4_latency_ns": (
+                        sum(lz4_lat_values) / len(lz4_lat_values)
+                        if lz4_lat_values
+                        else math.nan
+                    ),
+                }
+            )
+            zstd_miss_rows.append(
+                {
+                    "tl": tl,
+                    "sl": sl,
+                    "zstd_trace_count": len(zstd_miss_values),
+                    "avg_zstd_miss_latency_ns": (
+                        sum(zstd_miss_values) / len(zstd_miss_values)
+                        if zstd_miss_values
+                        else math.nan
+                    ),
+                }
+            )
+            lz4_miss_rows.append(
+                {
+                    "tl": tl,
+                    "sl": sl,
+                    "lz4_trace_count": len(lz4_miss_values),
+                    "avg_lz4_miss_latency_ns": (
+                        sum(lz4_miss_values) / len(lz4_miss_values)
+                        if lz4_miss_values
+                        else math.nan
+                    ),
+                }
+            )
+
+    zstd_latency_csv = results_root / "zstd_avg_latency_heatmap_cells.csv"
+    with zstd_latency_csv.open("w", newline="") as fh:
+        writer = csv.DictWriter(
+            fh,
+            fieldnames=[
+                "tl",
+                "sl",
+                "zstd_trace_count",
+                "avg_zstd_latency_ns",
+            ],
+        )
+        writer.writeheader()
+        writer.writerows(zstd_latency_rows)
+
+    lz4_latency_csv = results_root / "lz4_avg_latency_heatmap_cells.csv"
+    with lz4_latency_csv.open("w", newline="") as fh:
+        writer = csv.DictWriter(
+            fh,
+            fieldnames=[
+                "tl",
+                "sl",
+                "lz4_trace_count",
+                "avg_lz4_latency_ns",
+            ],
+        )
+        writer.writeheader()
+        writer.writerows(lz4_latency_rows)
+
+    zstd_miss_csv = results_root / "zstd_avg_miss_latency_heatmap_cells.csv"
+    with zstd_miss_csv.open("w", newline="") as fh:
+        writer = csv.DictWriter(
+            fh,
+            fieldnames=[
+                "tl",
+                "sl",
+                "zstd_trace_count",
+                "avg_zstd_miss_latency_ns",
+            ],
+        )
+        writer.writeheader()
+        writer.writerows(zstd_miss_rows)
+
+    lz4_miss_csv = results_root / "lz4_avg_miss_latency_heatmap_cells.csv"
+    with lz4_miss_csv.open("w", newline="") as fh:
+        writer = csv.DictWriter(
+            fh,
+            fieldnames=[
+                "tl",
+                "sl",
+                "lz4_trace_count",
+                "avg_lz4_miss_latency_ns",
+            ],
+        )
+        writer.writeheader()
+        writer.writerows(lz4_miss_rows)
+
+    return zstd_latency_csv, lz4_latency_csv, zstd_miss_csv, lz4_miss_csv
+
+
 def build_matrix(
     rows: list[dict], value_key: str, tls: list[int], sls: list[int]
 ) -> np.ndarray:
@@ -591,11 +786,20 @@ def render_heatmap(
     cbar_label: str,
     value_format: str,
     cmap: str,
+    vmin: float | None = None,
+    vmax: float | None = None,
 ) -> None:
     fig, ax = plt.subplots(
         figsize=(1.2 * len(tls) + 2.0, 1.0 * len(sls) + 2.0)
     )
-    im = ax.imshow(matrix, origin="lower", aspect="auto", cmap=cmap)
+    im = ax.imshow(
+        matrix,
+        origin="lower",
+        aspect="auto",
+        cmap=cmap,
+        vmin=vmin,
+        vmax=vmax,
+    )
     cbar = fig.colorbar(im, ax=ax)
     cbar.set_label(cbar_label)
 
@@ -642,14 +846,16 @@ def main() -> int:
         raise FileNotFoundError(f"trace directory not found: {trace_root}")
 
     results_root.mkdir(parents=True, exist_ok=True)
-    jobs = discover_jobs(trace_root)
+    jobs = discover_jobs(trace_root, args.skip_trace_count)
 
     print(
-        f"Discovered {len(jobs)} traces in {trace_root}. Running with parallelism={args.parallelism}.",
+        f"Discovered {len(jobs)} traces in {trace_root}. Running with parallelism={args.parallelism}. "
+        f"skip_trace_count={args.skip_trace_count}.",
         flush=True,
     )
 
     results: list[TraceResult] = []
+    skipped = 0
     with ThreadPoolExecutor(max_workers=args.parallelism) as executor:
         future_to_job = {
             executor.submit(
@@ -665,6 +871,7 @@ def main() -> int:
                 args.l1_size,
                 args.l1_assoc,
                 args.chunk_send_delay_ticks,
+                args.max_sim_ticks,
                 args.inter_memory_request_delay_ticks,
                 args.timeout_seconds,
                 args.force,
@@ -675,7 +882,16 @@ def main() -> int:
         completed = 0
         for future in as_completed(future_to_job):
             job = future_to_job[future]
-            result = future.result()
+            try:
+                result = future.result()
+            except SkipTraceResult as exc:
+                skipped += 1
+                completed += 1
+                print(
+                    f"[{completed}/{len(jobs)}] {job.trace_name}: skipped ({exc})",
+                    flush=True,
+                )
+                continue
             results.append(result)
             completed += 1
             print(
@@ -688,10 +904,19 @@ def main() -> int:
                 flush=True,
             )
 
+    if not results:
+        raise RuntimeError("No valid trace results collected.")
+
     trace_csv = write_trace_csv(results_root, results)
     zstd_cells_csv, lz4_bw_cells_csv, zstd_speedup_cells_csv = write_cell_csvs(
         results_root, results
     )
+    (
+        zstd_latency_cells_csv,
+        lz4_latency_cells_csv,
+        zstd_miss_cells_csv,
+        lz4_miss_cells_csv,
+    ) = write_codec_latency_cell_csvs(results_root, results)
 
     tls = sorted({result.tl for result in results})
     sls = sorted({result.sl for result in results})
@@ -702,6 +927,14 @@ def main() -> int:
         lz4_bw_rows = list(csv.DictReader(fh))
     with zstd_speedup_cells_csv.open() as fh:
         zstd_speedup_rows = list(csv.DictReader(fh))
+    with zstd_latency_cells_csv.open() as fh:
+        zstd_latency_rows = list(csv.DictReader(fh))
+    with lz4_latency_cells_csv.open() as fh:
+        lz4_latency_rows = list(csv.DictReader(fh))
+    with zstd_miss_cells_csv.open() as fh:
+        zstd_miss_rows = list(csv.DictReader(fh))
+    with lz4_miss_cells_csv.open() as fh:
+        lz4_miss_rows = list(csv.DictReader(fh))
 
     zstd_matrix = build_matrix(zstd_rows, "zstd_better_pct", tls, sls)
     lz4_bw_matrix = build_matrix(
@@ -709,6 +942,38 @@ def main() -> int:
     )
     zstd_speedup_matrix = build_matrix(
         zstd_speedup_rows, "avg_zstd_speedup_over_lz4", tls, sls
+    )
+    zstd_avg_latency_matrix = build_matrix(
+        zstd_latency_rows, "avg_zstd_latency_ns", tls, sls
+    )
+    lz4_avg_latency_matrix = build_matrix(
+        lz4_latency_rows, "avg_lz4_latency_ns", tls, sls
+    )
+    zstd_avg_miss_matrix = build_matrix(
+        zstd_miss_rows, "avg_zstd_miss_latency_ns", tls, sls
+    )
+    lz4_avg_miss_matrix = build_matrix(
+        lz4_miss_rows, "avg_lz4_miss_latency_ns", tls, sls
+    )
+
+    def finite_range(
+        *matrices: np.ndarray,
+    ) -> tuple[float | None, float | None]:
+        finite_values: list[np.ndarray] = []
+        for mat in matrices:
+            values = mat[np.isfinite(mat)]
+            if values.size:
+                finite_values.append(values)
+        if not finite_values:
+            return None, None
+        merged = np.concatenate(finite_values)
+        return float(np.min(merged)), float(np.max(merged))
+
+    avg_latency_vmin, avg_latency_vmax = finite_range(
+        zstd_avg_latency_matrix, lz4_avg_latency_matrix
+    )
+    miss_latency_vmin, miss_latency_vmax = finite_range(
+        zstd_avg_miss_matrix, lz4_avg_miss_matrix
     )
 
     zstd_plot = results_root / "zstd_better_pct_heatmap.png"
@@ -747,13 +1012,78 @@ def main() -> int:
         cmap="cividis",
     )
 
+    zstd_avg_latency_plot = results_root / "zstd_avg_latency_heatmap.png"
+    render_heatmap(
+        zstd_avg_latency_matrix,
+        tls,
+        sls,
+        zstd_avg_latency_plot,
+        title="ZSTD Average Latency",
+        cbar_label="Average Latency (ns)",
+        value_format=".1f",
+        cmap="viridis",
+        vmin=avg_latency_vmin,
+        vmax=avg_latency_vmax,
+    )
+
+    lz4_avg_latency_plot = results_root / "lz4_avg_latency_heatmap.png"
+    render_heatmap(
+        lz4_avg_latency_matrix,
+        tls,
+        sls,
+        lz4_avg_latency_plot,
+        title="LZ4 Average Latency",
+        cbar_label="Average Latency (ns)",
+        value_format=".1f",
+        cmap="viridis",
+        vmin=avg_latency_vmin,
+        vmax=avg_latency_vmax,
+    )
+
+    zstd_avg_miss_plot = results_root / "zstd_avg_miss_latency_heatmap.png"
+    render_heatmap(
+        zstd_avg_miss_matrix,
+        tls,
+        sls,
+        zstd_avg_miss_plot,
+        title="ZSTD Average Miss Latency",
+        cbar_label="Average Miss Latency (ns)",
+        value_format=".1f",
+        cmap="viridis",
+        vmin=miss_latency_vmin,
+        vmax=miss_latency_vmax,
+    )
+
+    lz4_avg_miss_plot = results_root / "lz4_avg_miss_latency_heatmap.png"
+    render_heatmap(
+        lz4_avg_miss_matrix,
+        tls,
+        sls,
+        lz4_avg_miss_plot,
+        title="LZ4 Average Miss Latency",
+        cbar_label="Average Miss Latency (ns)",
+        value_format=".1f",
+        cmap="viridis",
+        vmin=miss_latency_vmin,
+        vmax=miss_latency_vmax,
+    )
+
     print(f"Trace CSV: {trace_csv}")
     print(f"ZSTD heatmap cell CSV: {zstd_cells_csv}")
     print(f"LZ4 BW heatmap cell CSV: {lz4_bw_cells_csv}")
     print(f"ZSTD speedup cell CSV: {zstd_speedup_cells_csv}")
+    print(f"ZSTD avg latency cell CSV: {zstd_latency_cells_csv}")
+    print(f"LZ4 avg latency cell CSV: {lz4_latency_cells_csv}")
+    print(f"ZSTD avg miss latency cell CSV: {zstd_miss_cells_csv}")
+    print(f"LZ4 avg miss latency cell CSV: {lz4_miss_cells_csv}")
     print(f"ZSTD heatmap image: {zstd_plot}")
     print(f"LZ4 BW heatmap image: {lz4_bw_plot}")
     print(f"ZSTD speedup heatmap image: {zstd_speedup_plot}")
+    print(f"ZSTD avg latency heatmap image: {zstd_avg_latency_plot}")
+    print(f"LZ4 avg latency heatmap image: {lz4_avg_latency_plot}")
+    print(f"ZSTD avg miss latency heatmap image: {zstd_avg_miss_plot}")
+    print(f"LZ4 avg miss latency heatmap image: {lz4_avg_miss_plot}")
+    print(f"Skipped traces: {skipped}")
     return 0
 
 

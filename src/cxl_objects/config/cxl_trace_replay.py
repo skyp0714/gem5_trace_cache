@@ -144,6 +144,12 @@ parser.add_argument(
     default=1000,
     help="Cycles between memory requests sent by the decompression engine",
 )
+parser.add_argument(
+    "--max-sim-ticks",
+    type=int,
+    default=32000000000000,
+    help="Maximum number of simulation ticks to run (0 means unlimited)",
+)
 args = parser.parse_args()
 
 if not is_power_of_two(args.mem_channels):
@@ -305,7 +311,12 @@ print(
 )
 
 # Run the simulation
-exit_event = m5.simulate()
+if args.max_sim_ticks > 0:
+    print(f"Max sim ticks: {args.max_sim_ticks}")
+    exit_event = m5.simulate(args.max_sim_ticks)
+else:
+    print("Max sim ticks: unlimited")
+    exit_event = m5.simulate()
 
 # Print exit status
 print(f"Exiting @ tick {m5.curTick()} because {exit_event.getCause()}")
